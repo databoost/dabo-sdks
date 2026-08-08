@@ -1,0 +1,37 @@
+{
+    "name": "databoost/sro",
+    "description": "Thin PHP client for the DataBoost Sticky Relative Order (SRO) HTTP API",
+    "type": "library",
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "DataBoost",
+            "homepage": "https://github.com/databoost"
+        }
+    ],
+    "homepage": "https://github.com/databoost/sro-clients",
+    "support": {
+        "source": "https://github.com/databoost/sro-clients"
+    },
+    "require": {
+        "php": "^8.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Databoost\\Sro\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Databoost\\Sro\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

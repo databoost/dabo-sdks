@@ -1,0 +1,348 @@
+openapi: 3.0.3
+info:
+  title: DataBoost SRO API
+  description: |
+    Sticky Relative Order (SRO) ranking service.
+    Clients receive dense production sequence 1…n only — never major.minor /
+    sequence_default / sequence_override.
+  version: 1.0.0
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local sidecar
+security:
+  - BearerAuth: []
+    TenantHeader: []
+paths:
+  /health:
+    get:
+      summary: Liveness
+      security: []
+      operationId: health
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /v1/tenants/{tenant_id}/lists/{list_id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ListId'
+    get:
+      summary: List production sequences
+      operationId: list
+      responses:
+        '200':
+          description: Dense sequence snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSnapshot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/tenants/{tenant_id}/lists/{list_id}/syncNatural:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ListId'
+    post:
+      summary: Upsert natural sort signals and reheal defaults
+      operationId: syncNatural
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncNaturalRequest'
+      responses:
+        '200':
+          description: Updated sequence snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/tenants/{tenant_id}/lists/{list_id}/reorder:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ListId'
+    post:
+      summary: Place item before or after a neighbor (Natural Override)
+      operationId: reorder
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderRequest'
+      responses:
+        '200':
+          description: Updated sequence snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/tenants/{tenant_id}/lists/{list_id}/jump:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ListId'
+    post:
+      summary: Jump item to production sequence slot k
+      operationId: jump
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JumpRequest'
+      responses:
+        '200':
+          description: Updated sequence snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/tenants/{tenant_id}/lists/{list_id}/remove:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ListId'
+    post:
+      summary: Remove item and compact remaining sequences
+      operationId: remove
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveRequest'
+      responses:
+        '200':
+          description: Updated sequence snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Plant / tenant API token (SRO_API_TOKEN)
+    TenantHeader:
+      type: apiKey
+      in: header
+      name: X-Tenant-Id
+      description: Must match path tenant_id
+
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    ListId:
+      name: list_id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: Expected list version (integer as string). Mismatch → 409.
+      schema:
+        type: string
+
+  schemas:
+    SequenceRow:
+      type: object
+      required: [id, sequence]
+      properties:
+        id:
+          type: string
+          description: Opaque client item id
+        sequence:
+          type: integer
+          minimum: 1
+          description: Dense production sequence 1…n
+        major_minor:
+          type: string
+          nullable: true
+          description: |
+            Dev-only label (SRO_ENV=development): sticky as "M.m", else natural major as "M".
+            Backed by integer natural_major / sticky_major / sticky_minor — never float storage.
+          example: "1.2"
+
+    SequenceSnapshot:
+      type: object
+      required: [items, version]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SequenceRow'
+        version:
+          type: integer
+          minimum: 0
+          description: List concurrency version
+
+    SyncNaturalItem:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+        sort_key:
+          type: string
+          nullable: true
+        sort_data_type:
+          type: string
+          nullable: true
+          description: date | datetime | int | decimal | string | …
+
+    SyncNaturalRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyncNaturalItem'
+        expected_version:
+          type: integer
+          nullable: true
+
+    ReorderRequest:
+      type: object
+      required: [item_id]
+      properties:
+        item_id:
+          type: string
+        after_item_id:
+          type: string
+          nullable: true
+          description: Place after this id; null = first. Mutually exclusive with before_item_id.
+        before_item_id:
+          type: string
+          nullable: true
+          description: Place before this id (converted to after of prior neighbor).
+        expected_version:
+          type: integer
+          nullable: true
+
+    JumpRequest:
+      type: object
+      required: [item_id, to_sequence]
+      properties:
+        item_id:
+          type: string
+        to_sequence:
+          type: integer
+          minimum: 1
+        expected_version:
+          type: integer
+          nullable: true
+
+    RemoveRequest:
+      type: object
+      required: [item_id]
+      properties:
+        item_id:
+          type: string
+        expected_version:
+          type: integer
+          nullable: true
+
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: conflict
+            message:
+              type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    NotFound:
+      description: List or item not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Conflict:
+      description: Version mismatch
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'

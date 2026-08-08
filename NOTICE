@@ -1,0 +1,9 @@
+Copyright (c) 2026 DataBoost. All rights reserved.
+
+This repository contains thin language clients for the DataBoost SRO HTTP API.
+Unauthorized copying or redistribution is prohibited except as expressly
+permitted in writing by DataBoost.
+
+No open-source license is granted by publishing this repository. These clients
+are intended for applications that call a DataBoost SRO service (self-hosted or
+SaaS). Ranking algorithms are not included in this repository.
