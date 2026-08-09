@@ -39,6 +39,8 @@ rows = client.list('bindery')
 client.jump('bindery', 'b', 1)
 client.reorder('bindery', 'a', 'b')  # place a after b
 client.remove('bindery', 'a')
+client.reset_sticky('bindery', 'b')  # clear one sticky, re-rank naturals
+client.reset_stickies('bindery')     # clear all stickies, re-rank naturals
 ```
 
-Method names mirror the PHP façade (`syncNatural` → `sync_natural`).
+Method names mirror the PHP façade (`syncNatural` → `sync_natural`, `resetSticky` → `reset_sticky`).

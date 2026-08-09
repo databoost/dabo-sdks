@@ -36,4 +36,18 @@ interface Engine
      * @return list<SequenceRow>
      */
     public function remove(string $listId, string $itemId): array;
+
+    /**
+     * Clear sticky major/minor on one item, then densify naturals.
+     *
+     * @return list<SequenceRow>
+     */
+    public function resetSticky(string $listId, string $itemId): array;
+
+    /**
+     * Clear sticky major/minor on every row, then densify naturals.
+     *
+     * @return list<SequenceRow>
+     */
+    public function resetStickies(string $listId): array;
 }

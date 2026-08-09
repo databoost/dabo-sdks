@@ -46,6 +46,14 @@ module Databoost
         request(:post, list_path(list_id, 'remove'), { item_id: item_id })
       end
 
+      def reset_sticky(list_id, item_id)
+        request(:post, list_path(list_id, 'resetSticky'), { item_id: item_id })
+      end
+
+      def reset_stickies(list_id)
+        request(:post, list_path(list_id, 'resetStickies'), nil)
+      end
+
       private
 
       def normalize_sync_item(item)

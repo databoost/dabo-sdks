@@ -76,6 +76,22 @@ final class Client
     }
 
     /**
+     * @return list<SequenceRow>
+     */
+    public function resetSticky(string $listId, string $itemId): array
+    {
+        return $this->engine->resetSticky($listId, $itemId);
+    }
+
+    /**
+     * @return list<SequenceRow>
+     */
+    public function resetStickies(string $listId): array
+    {
+        return $this->engine->resetStickies($listId);
+    }
+
+    /**
      * @param  list<SequenceRow>  $prev
      * @param  list<SequenceRow>  $next
      * @return list<SequenceRow>

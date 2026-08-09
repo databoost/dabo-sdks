@@ -174,12 +174,82 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
+  /v1/tenants/{tenant_id}/lists/{list_id}/resetSticky:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ListId'
+    post:
+      summary: Reset one item's sticky major/minor and re-rank naturals
+      description: |
+        Clears sticky_major / sticky_minor on the target item, then reassigns
+        dense natural_major 1…n from stored sort_key / sort_data_type.
+        For every row, use resetStickies instead.
+      operationId: resetSticky
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetStickyRequest'
+      responses:
+        '200':
+          description: Updated sequence snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/tenants/{tenant_id}/lists/{list_id}/resetStickies:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ListId'
+    post:
+      summary: Reset every sticky major/minor and re-rank naturals
+      description: |
+        Clears sticky_major / sticky_minor on every row, then reassigns dense
+        natural_major 1…n from stored sort_key / sort_data_type.
+        Same densify rules as syncNatural; no items payload required.
+      operationId: resetStickies
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetStickiesRequest'
+      responses:
+        '200':
+          description: Updated sequence snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
-      description: Plant / tenant API token (SRO_API_TOKEN)
+      description: |
+        Env global SRO_API_TOKEN (any tenant) or a DB-issued per-tenant token
+        (sro_<prefix>_<secret>, hashed in px_sro_api_tokens).
     TenantHeader:
       type: apiKey
       in: header
@@ -305,6 +375,25 @@ components:
       properties:
         item_id:
           type: string
+        expected_version:
+          type: integer
+          nullable: true
+
+    ResetStickyRequest:
+      type: object
+      required: [item_id]
+      properties:
+        item_id:
+          type: string
+          description: Item id whose sticky columns to null.
+          example: job-123
+        expected_version:
+          type: integer
+          nullable: true
+
+    ResetStickiesRequest:
+      type: object
+      properties:
         expected_version:
           type: integer
           nullable: true

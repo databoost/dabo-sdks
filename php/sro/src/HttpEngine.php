@@ -70,6 +70,18 @@ final class HttpEngine implements Engine
         ]);
     }
 
+    public function resetSticky(string $listId, string $itemId): array
+    {
+        return $this->request('POST', $this->listPath($listId).'/resetSticky', [
+            'item_id' => $itemId,
+        ]);
+    }
+
+    public function resetStickies(string $listId): array
+    {
+        return $this->request('POST', $this->listPath($listId).'/resetStickies', null);
+    }
+
     private function listPath(string $listId): string
     {
         return '/v1/tenants/'.rawurlencode($this->tenantId).'/lists/'.rawurlencode($listId);
