@@ -8,6 +8,7 @@ These packages **only call the API**. They do **not** embed ranking logic (natur
 |------|---------|----------|
 | [`php/sro/`](php/sro/) | `databoost/sro` | PHP 8.2+ |
 | [`ruby/`](ruby/) | `databoost-sro` | Ruby 3.1+ |
+| [`typescript/`](typescript/) | `databoost-sro` | TypeScript (Node 18+) |
 | [`openapi/sro-v1.yaml`](openapi/sro-v1.yaml) | API contract | — |
 
 Live SRO API: <https://sro.databoost.com>
@@ -85,6 +86,40 @@ client.jump('bindery', 'b', 1)
 
 See [`ruby/README.md`](ruby/README.md).
 
+## TypeScript
+
+```json
+{
+  "dependencies": {
+    "databoost-sro": "file:../dabo-sdks/typescript"
+  }
+}
+```
+
+```ts
+import { Client } from "databoost-sro";
+
+const client = new Client({
+  baseUrl: process.env.SRO_BASE_URL!, // e.g. https://sro.databoost.com
+  apiToken: process.env.SRO_API_TOKEN!,
+  tenantId: "demo",
+});
+
+await client.syncNatural("bindery", [
+  { id: "a", sort_key: "2026-08-01", sort_data_type: "date" },
+  { id: "b", sort_key: "2026-08-10", sort_data_type: "date" },
+]);
+
+const rows = await client.list("bindery");
+await client.jump("bindery", "b", 1);
+await client.resetSticky("bindery", "b");
+await client.resetStickies("bindery");
+```
+
+Methods are **async** (native `fetch`). Names match PHP / OpenAPI camelCase.
+
+See [`typescript/README.md`](typescript/README.md).
+
 ## API surface
 
 | Method | Purpose |
@@ -94,6 +129,8 @@ See [`ruby/README.md`](ruby/README.md).
 | `jump(listId, itemId, toSequence)` | Move an item to a display slot |
 | `reorder(listId, itemId, afterItemId)` | Place after a neighbor (`null` = first) |
 | `remove(listId, itemId)` | Drop an item; service compacts |
+| `resetSticky(listId, itemId)` | Clear one item’s sticky major/minor, then densify naturals |
+| `resetStickies(listId)` | Clear every sticky major/minor, then densify naturals |
 
 Auth: `Authorization: Bearer <token>` + `X-Tenant-Id: <tenant>` (must match the path `/v1/tenants/{tenant}/…`).
 
@@ -101,7 +138,7 @@ Responses contain dense sequences only — never internal ranking keys.
 
 ## Adding a language / another PHP SDK
 
-New clients (Python, JS/TS, Go…) and additional PHP packages (`php/<product>/`) belong here. Match the method names above and return `{id, sequence}`; keep all ranking on the service.
+New clients (Python, Go…) and additional PHP packages (`php/<product>/`) belong here. Match the method names above and return `{id, sequence}`; keep all ranking on the service.
 
 ## License
 
