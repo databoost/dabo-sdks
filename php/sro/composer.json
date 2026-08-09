@@ -9,9 +9,9 @@
             "homepage": "https://github.com/databoost"
         }
     ],
-    "homepage": "https://github.com/databoost/sro-clients",
+    "homepage": "https://github.com/databoost/dabo-sdks",
     "support": {
-        "source": "https://github.com/databoost/sro-clients"
+        "source": "https://github.com/databoost/dabo-sdks"
     },
     "require": {
         "php": "^8.2"

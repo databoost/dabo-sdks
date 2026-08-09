@@ -8,7 +8,7 @@ OpenAPI: [`../openapi/sro-v1.yaml`](../openapi/sro-v1.yaml).
 
 ```ruby
 # Gemfile
-gem 'databoost-sro', git: 'https://github.com/databoost/sro-clients.git', glob: 'ruby/*.gemspec'
+gem 'databoost-sro', git: 'https://github.com/databoost/dabo-sdks.git', glob: 'ruby/*.gemspec'
 ```
 
 Local checkout:
@@ -23,7 +23,7 @@ gem 'databoost-sro', path: 'ruby'
 require 'databoost/sro'
 
 client = Databoost::Sro::Client.new(
-  base_url: 'http://127.0.0.1:8080',
+  base_url: ENV.fetch('SRO_BASE_URL'), # e.g. https://sro.databoost.com
   api_token: ENV.fetch('SRO_API_TOKEN'),
   tenant_id: 'demo'
 )

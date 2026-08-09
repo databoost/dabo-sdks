@@ -7,7 +7,7 @@ namespace Databoost\Sro;
 /**
  * HTTP ranking surface (service owns item state). Thin client contract only.
  */
-interface StatefulSroEngine
+interface Engine
 {
     /**
      * @param  list<array{id: string, sort_key?: ?string, sort_data_type?: ?string}>  $items

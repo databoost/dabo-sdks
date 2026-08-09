@@ -4,7 +4,7 @@
          bootstrap="vendor/autoload.php"
          colors="true">
     <testsuites>
-        <testsuite name="SroClient">
+        <testsuite name="Client">
             <directory>tests</directory>
         </testsuite>
     </testsuites>

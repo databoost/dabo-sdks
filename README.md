@@ -1,34 +1,44 @@
-# DataBoost SRO clients
+# DataBoost SDKs (`dabo-sdks`)
 
-Thin language SDKs for the **Sticky Relative Order (SRO)** HTTP API.
+Thin language SDKs for DataBoost HTTP APIs. Today: **Sticky Relative Order (SRO)**.
 
 These packages **only call the API**. They do **not** embed ranking logic (natural spine, sticky overrides, reheal) — that lives in the SRO service.
 
 | Path | Package | Language |
 |------|---------|----------|
-| [`src/`](src/) | `databoost/sro` | PHP 8.2+ |
+| [`php/sro/`](php/sro/) | `databoost/sro` | PHP 8.2+ |
 | [`ruby/`](ruby/) | `databoost-sro` | Ruby 3.1+ |
 | [`openapi/sro-v1.yaml`](openapi/sro-v1.yaml) | API contract | — |
 
-## PHP
+Live SRO API: <https://sro.databoost.com>
+
+## PHP (`databoost/sro`)
+
+Package lives under [`php/sro/`](php/sro/) (Shape B — one Composer package per SDK). There is **no** root `composer.json`.
+
+**Sibling / path install** (recommended until package-split CI exists):
 
 ```json
 {
   "repositories": [
-    { "type": "vcs", "url": "https://github.com/databoost/sro-clients" }
+    { "type": "path", "url": "../dabo-sdks/php/*" }
   ],
-  "require": { "databoost/sro": "^0.1" }
+  "require": { "databoost/sro": "@dev" }
 }
 ```
 
-```php
-use Databoost\Sro\SroClient;
+VCS/`composer require databoost/sro` from this monorepo is **not** supported yet (Composer only reads a root manifest).
 
-$client = SroClient::http(
-    getenv('SRO_BASE_URL') ?: 'http://127.0.0.1:8080',
+```php
+use Databoost\Sro\Client;
+
+// base URL is required — no localhost or production default
+$client = Client::http(
+    getenv('SRO_BASE_URL') ?: throw new RuntimeException('SRO_BASE_URL is required'),
     getenv('SRO_API_TOKEN') ?: '',
     getenv('SRO_TENANT_ID') ?: 'demo',
 );
+// production example: Client::http('https://sro.databoost.com', $token, 'lpp');
 
 // Push natural sort signals — opaque ids only, no business payloads
 $client->syncNatural('bindery', [
@@ -46,20 +56,20 @@ $client->reorder('bindery', '101', afterItemId: null); // move to first
 $client->remove('bindery', '101');
 ```
 
-Namespace `Databoost\Sro`; the factory returns `StatefulSroClient`.
+Namespace `Databoost\Sro`. `Client::http(...)` returns `Client`. Tests may inject a fake via `new Client($engine)` (`Engine` interface).
 
 ## Ruby
 
 ```ruby
 # Gemfile
-gem 'databoost-sro', git: 'https://github.com/databoost/sro-clients.git', glob: 'ruby/*.gemspec'
+gem 'databoost-sro', git: 'https://github.com/databoost/dabo-sdks.git', glob: 'ruby/*.gemspec'
 ```
 
 ```ruby
 require 'databoost/sro'
 
 client = Databoost::Sro::Client.new(
-  base_url: 'http://127.0.0.1:8080',
+  base_url: ENV.fetch('SRO_BASE_URL'), # e.g. https://sro.databoost.com
   api_token: ENV.fetch('SRO_API_TOKEN'),
   tenant_id: 'demo'
 )
@@ -89,9 +99,9 @@ Auth: `Authorization: Bearer <token>` + `X-Tenant-Id: <tenant>` (must match the 
 
 Responses contain dense sequences only — never internal ranking keys.
 
-## Adding a language
+## Adding a language / another PHP SDK
 
-New clients (Python, JS/TS, Go…) belong here. Match the method names above and return `{id, sequence}`; keep all ranking on the service.
+New clients (Python, JS/TS, Go…) and additional PHP packages (`php/<product>/`) belong here. Match the method names above and return `{id, sequence}`; keep all ranking on the service.
 
 ## License
 

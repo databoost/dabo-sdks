@@ -1,5 +1,9 @@
 /vendor/
+**/vendor/
 /.phpunit.cache/
+**/.phpunit.cache/
+**/.phpunit.result.cache
 composer.lock
+**/composer.lock
 *.gem
 .DS_Store

@@ -6,14 +6,30 @@ namespace Databoost\Sro;
 
 /**
  * Façade for the SRO HTTP API (state + ranking live on the service).
+ *
+ * @example
+ * $client = Client::http('https://sro.databoost.com', $token, 'lpp');
+ * $client->syncNatural('bindery', [
+ *     ['id' => '1', 'sort_key' => '2026-08-01', 'sort_data_type' => 'date'],
+ * ]);
+ * $rows = $client->list('bindery'); // SequenceRow id + sequence 1…n
+ * $client->jump('bindery', '1', 3);
  */
-final class StatefulSroClient
+final class Client
 {
     public function __construct(
-        private StatefulSroEngine $engine,
+        private Engine $engine,
     ) {}
 
-    public function engine(): StatefulSroEngine
+    /**
+     * Build a Client over HttpEngine. $baseUrl is required (no default).
+     */
+    public static function http(string $baseUrl, string $apiToken, string $tenantId): self
+    {
+        return new self(new HttpEngine($baseUrl, $apiToken, $tenantId));
+    }
+
+    public function engine(): Engine
     {
         return $this->engine;
     }

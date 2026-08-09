@@ -8,9 +8,12 @@ use InvalidArgumentException;
 use RuntimeException;
 
 /**
- * Thin HTTP client for the SRO sidecar. Never sees major.minor.
+ * Thin HTTP client for the SRO service. Never sees major.minor.
+ *
+ * $baseUrl is required — there is no localhost or production default.
+ * Production: https://sro.databoost.com
  */
-final class HttpSroEngine implements StatefulSroEngine
+final class HttpEngine implements Engine
 {
     public function __construct(
         private string $baseUrl,

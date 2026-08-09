@@ -1,6 +1,7 @@
 Copyright (c) 2026 DataBoost. All rights reserved.
 
-This repository contains thin language clients for the DataBoost SRO HTTP API.
+This repository (dabo-sdks) contains thin language SDKs for DataBoost HTTP APIs
+(currently the SRO ranking API).
 Unauthorized copying or redistribution is prohibited except as expressly
 permitted in writing by DataBoost.
 

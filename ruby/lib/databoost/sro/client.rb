@@ -6,7 +6,7 @@ require 'uri'
 
 module Databoost
   module Sro
-    # Thin HTTP client. Method names mirror the PHP StatefulSroClient / OpenAPI.
+    # Thin HTTP client. Method names mirror the PHP Client / OpenAPI.
     class Client
       SequenceRow = Struct.new(:id, :sequence, keyword_init: true)
 
