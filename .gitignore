@@ -7,3 +7,12 @@ composer.lock
 **/composer.lock
 *.gem
 .DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+*.tsbuildinfo
