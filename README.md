@@ -8,6 +8,7 @@ These packages **only call the API**. They do **not** embed ranking logic (natur
 |------|---------|----------|
 | [`php/sro/`](php/sro/) | `databoost/sro` | PHP 8.2+ |
 | [`ruby/`](ruby/) | `databoost-sro` | Ruby 3.1+ |
+| [`python/`](python/) | `databoost-sro` | Python 3.10+ |
 | [`openapi/sro-v1.yaml`](openapi/sro-v1.yaml) | API contract | — |
 
 Live SRO API: <https://sro.databoost.com>
@@ -85,6 +86,36 @@ client.jump('bindery', 'b', 1)
 
 See [`ruby/README.md`](ruby/README.md).
 
+## Python
+
+```toml
+# path install
+databoost-sro = { path = "../dabo-sdks/python", editable = true }
+```
+
+```python
+import os
+from databoost.sro import Client
+
+client = Client(
+    base_url=os.environ["SRO_BASE_URL"],  # e.g. https://sro.databoost.com
+    api_token=os.environ["SRO_API_TOKEN"],
+    tenant_id="demo",
+)
+
+client.sync_natural("bindery", [
+    {"id": "a", "sort_key": "2026-08-01", "sort_data_type": "date"},
+    {"id": "b", "sort_key": "2026-08-10", "sort_data_type": "date"},
+])
+
+rows = client.list("bindery")
+client.jump("bindery", "b", 1)
+client.reset_sticky("bindery", "b")
+client.reset_stickies("bindery")
+```
+
+See [`python/README.md`](python/README.md).
+
 ## API surface
 
 | Method | Purpose |
@@ -101,7 +132,7 @@ Responses contain dense sequences only — never internal ranking keys.
 
 ## Adding a language / another PHP SDK
 
-New clients (Python, JS/TS, Go…) and additional PHP packages (`php/<product>/`) belong here. Match the method names above and return `{id, sequence}`; keep all ranking on the service.
+New clients (JS/TS, Go…) and additional PHP packages (`php/<product>/`) belong here. Match the method names above and return `{id, sequence}`; keep all ranking on the service.
 
 ## License
 

@@ -1,0 +1,76 @@
+Metadata-Version: 2.4
+Name: databoost-sro
+Version: 0.1.0
+Summary: Thin Python client for the DataBoost SRO HTTP ranking API
+Author: DataBoost
+License: Proprietary
+Project-URL: Homepage, https://github.com/databoost/dabo-sdks
+Project-URL: Source, https://github.com/databoost/dabo-sdks
+Keywords: databoost,sro,ranking
+Classifier: Private :: Do Not Upload
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Typing :: Typed
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: pytest>=7; extra == "dev"
+
+# DataBoost SRO — Python client
+
+Thin client for the SRO HTTP API. Same contract as the PHP `databoost/sro` and Ruby `databoost-sro` packages; no ranking logic in-process.
+
+Uses **stdlib only** (`urllib`). OpenAPI: [`../openapi/sro-v1.yaml`](../openapi/sro-v1.yaml).
+
+## Install
+
+```toml
+# pyproject.toml / requirements — path
+databoost-sro = { path = "../dabo-sdks/python", editable = true }
+```
+
+```toml
+# git
+databoost-sro = { git = "https://github.com/databoost/dabo-sdks.git", subdirectory = "python" }
+```
+
+Local editable:
+
+```bash
+pip install -e "./python[dev]"
+```
+
+## Usage
+
+```python
+import os
+from databoost.sro import Client
+
+client = Client(
+    base_url=os.environ["SRO_BASE_URL"],  # e.g. https://sro.databoost.com
+    api_token=os.environ["SRO_API_TOKEN"],
+    tenant_id="demo",
+)
+
+client.sync_natural("bindery", [
+    {"id": "a", "sort_key": "2026-08-01", "sort_data_type": "date"},
+    {"id": "b", "sort_key": "2026-08-10", "sort_data_type": "date"},
+])
+
+rows = client.list("bindery")
+# => [SequenceRow(id='a', sequence=1), ...]
+
+client.jump("bindery", "b", 1)
+client.reorder("bindery", "a", "b")  # place a after b
+client.remove("bindery", "a")
+client.reset_sticky("bindery", "b")  # clear one sticky, re-rank naturals
+client.reset_stickies("bindery")     # clear all stickies, re-rank naturals
+```
+
+Method names match the Ruby façade (`sync_natural`, `reset_sticky`, …). PHP uses camelCase for the same operations.
+
+## Tests
+
+```bash
+cd python && pip install -e ".[dev]" && pytest
+```
