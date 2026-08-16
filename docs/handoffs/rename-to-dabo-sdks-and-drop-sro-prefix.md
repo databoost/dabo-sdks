@@ -5,8 +5,8 @@
 **Date:** 2026-08-08 (executed 2026-08-09)
 **Audience:** New agent — do not assume prior chat access except this doc + linked files.
 
-> **Plan — mostly complete.** Steps 1–6 done in this repo. Remaining: **lpp-console** cutover
-> (step 7) and sibling rename `dabo-scheduler` → `dabo-sro`. Do not commit/push without the user.
+> **Plan — complete.** Steps 1–7 done. This repo is on `main` @ `839151b` (pushed). Sibling
+> cutovers landed in `lpp-console` and `dabo-sro`.
 
 ## Preflight — where are we?
 
@@ -41,11 +41,13 @@ Sibling rename happening at the same time: the service repo `dabo-scheduler` bec
 
 ## Current state (after 2026-08-09)
 
-Repo renamed on GitHub + locally. Shape B + class rename applied; **not committed** yet.
+Repo renamed on GitHub + locally. Shape B + class rename **committed and pushed** (`839151b`).
+Sibling cutovers complete (`lpp-console` on `databoost/sro`; service repo is `dabo-sro`).
 
 | Thing | Value |
 |---|---|
 | Remote | `git@github.com:databoost/dabo-sdks.git` |
+| Tip | `839151b` on `main` = `origin/main` |
 | PHP package | `php/sro/` → `databoost/sro`, PSR-4 `Databoost\Sro\` → `src/` |
 | PHP classes | `Client`, `Engine`, `HttpEngine`, `SequenceRow` |
 | Ruby | unchanged module; homepage URLs → `dabo-sdks` |
@@ -181,17 +183,19 @@ curl -s https://sro.databoost.com/health          # {"status":"ok"}
 - [x] **3.** Shape B layout: `php/sro/{composer.json,src,tests,phpunit.xml}`; no root manifest.
 - [x] **4.** Class rename map applied (`Client` / `Engine` / `HttpEngine`); README + tests updated.
 - [x] **5.** Documented `https://sro.databoost.com` (OpenAPI primary server + README); no code default.
-- [x] **6.** Updated `dabo-scheduler/clients/README.md` (still untracked there; repo rename to
-      `dabo-sro` still pending).
-- [ ] **7.** Coordinate the `lpp-console` cutover; see
-      `lpp-console/docs/handoffs/sro-package-cutover-databoost-sro.md` before releasing.
-      Also finish sibling rename `dabo-scheduler` → `dabo-sro` (path repos break until then).
+- [x] **6.** Updated service `clients/README.md` (now under `dabo-sro`; points at `dabo-sdks`).
+- [x] **7.** Coordinated siblings (verified 2026-08-09):
+      - `lpp-console` cutover complete — path `../dabo-sdks/php/*`, `databoost/sro`,
+        `Databoost\Sro\{Client,Engine,SequenceRow}`, `SRO_BASE_URL=https://sro.databoost.com`
+        (see `lpp-console/docs/handoffs/sro-package-cutover-databoost-sro.md`, steps 1–8).
+      - Service repo renamed `dabo-scheduler` → `dabo-sro` (GitHub + local);
+        legacy root `databoost/scheduler` package removed.
 
 ## Useful references
 
 - [`php/sro/composer.json`](../../php/sro/composer.json) · [`README.md`](../../README.md) · [`openapi/sro-v1.yaml`](../../openapi/sro-v1.yaml)
 - PHP: [`php/sro/src/Client.php`](../../php/sro/src/Client.php) · [`Engine.php`](../../php/sro/src/Engine.php) · [`HttpEngine.php`](../../php/sro/src/HttpEngine.php) · [`SequenceRow.php`](../../php/sro/src/SequenceRow.php)
 - Ruby client: [`ruby/README.md`](../../ruby/README.md)
-- Service + AWS (repo `dabo-scheduler` → `dabo-sro`): `/Users/brad/misc/github/databoost/dabo-scheduler/docs/DEPLOY-AWS.md` · `.../service/README.md`
-- Sibling handoffs: `dabo-scheduler/docs/handoffs/rename-repo-to-dabo-sro.md` · `lpp-console/docs/handoffs/sro-package-cutover-databoost-sro.md`
+- Service + AWS (`dabo-sro`): `/Users/brad/misc/github/databoost/dabo-sro/docs/DEPLOY-AWS.md` · `.../service/README.md`
+- Sibling handoffs: `dabo-sro/docs/handoffs/rename-repo-to-dabo-sro.md` · `lpp-console/docs/handoffs/sro-package-cutover-databoost-sro.md`
 - Live API: <https://sro.databoost.com>
