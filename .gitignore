@@ -16,3 +16,6 @@ __pycache__/
 venv/
 node_modules/
 *.tsbuildinfo
+
+# Cursor gated plans (local scratch; durable briefs live in docs/handoffs/)
+.cursor/plans/
