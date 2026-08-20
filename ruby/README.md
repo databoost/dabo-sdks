@@ -34,11 +34,13 @@ client.sync_natural('bindery', [
 ])
 
 rows = client.list('bindery')
-# => [#<struct id="a", sequence=1>, ...]
+# => [#<struct id="a", sequence=1, sticky=false>, ...]
 
 client.jump('bindery', 'b', 1)
 client.reorder('bindery', 'a', 'b')  # place a after b
 client.remove('bindery', 'a')
+client.reset_sticky('bindery', 'b')
+client.reset_stickies('bindery')
 ```
 
 Method names mirror the PHP façade (`syncNatural` → `sync_natural`).

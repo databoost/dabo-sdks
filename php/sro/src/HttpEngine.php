@@ -1,4 +1,5 @@
 <?php
+// © 2026 Bradley Giesbrecht, © 2026 DataBoost™, LLC, © 2026 DataBoost™ Inc. All Rights Reserved.
 
 declare(strict_types=1);
 
@@ -70,6 +71,18 @@ final class HttpEngine implements Engine
         ]);
     }
 
+    public function resetSticky(string $listId, string $itemId): array
+    {
+        return $this->request('POST', $this->listPath($listId).'/resetSticky', [
+            'item_id' => $itemId,
+        ]);
+    }
+
+    public function resetStickies(string $listId): array
+    {
+        return $this->request('POST', $this->listPath($listId).'/resetStickies', null);
+    }
+
     private function listPath(string $listId): string
     {
         return '/v1/tenants/'.rawurlencode($this->tenantId).'/lists/'.rawurlencode($listId);
@@ -114,10 +127,13 @@ final class HttpEngine implements Engine
 
         $rows = [];
         foreach ($data['items'] as $row) {
-            if (! is_array($row) || ! isset($row['id'], $row['sequence'])) {
+            if (! is_array($row)) {
                 continue;
             }
-            $rows[] = new SequenceRow((string) $row['id'], (int) $row['sequence']);
+            $parsed = SequenceRow::fromApi($row);
+            if ($parsed !== null) {
+                $rows[] = $parsed;
+            }
         }
 
         return $rows;
