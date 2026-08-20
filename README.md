@@ -162,10 +162,14 @@ See [`typescript/README.md`](typescript/README.md).
 | `syncNatural(listId, items)` | Push `{id, sort_key, sort_data_type}`; service assigns the natural spine |
 | `list(listId)` | Current order as `{id, sequence, sticky}` (sequence 1…n) |
 | `jump(listId, itemId, toSequence)` | Move an item to a display slot |
-| `reorder(listId, itemId, afterItemId)` | Place after a neighbor (`null` = first) |
+| `reorder(listId, itemId, afterItemId)` | Place after a neighbor (`null` = first); optional `beforeItemId` |
 | `remove(listId, itemId)` | Drop an item; service compacts |
 | `resetSticky(listId, itemId)` | Clear one item’s sticky overlay, then densify naturals |
 | `resetStickies(listId)` | Clear every sticky overlay on that list, then densify naturals |
+| `health()` | `GET /health` — `{status}` (no auth) |
+| `AdminClient` | Admin Bearer: list/provision/update/delete tenants, reconcile, regenerate/revoke tokens |
+
+Mutations accept optional `expectedVersion` / `expected_version` (409 on mismatch). Ranking methods still return `{id, sequence, sticky}[]` (not the snapshot `version` field).
 
 Auth: `Authorization: Bearer <token>` + `X-Tenant-Id: <tenant>` (must match the path `/v1/tenants/{tenant}/…`).
 

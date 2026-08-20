@@ -28,52 +28,87 @@ class Client:
         self._api_token = api_token
         self._tenant_id = tenant_id
 
+    def health(self) -> dict[str, str]:
+        data = self._json("GET", "/health", None, auth=False)
+        return {"status": str(data.get("status") or "")}
+
     def sync_natural(
         self,
         list_id: str,
         items: Sequence[Mapping[str, Any]],
+        expected_version: int | None = None,
     ) -> list[SequenceRow]:
-        payload = {"items": [self._normalize_sync_item(item) for item in items]}
+        payload: dict[str, Any] = {
+            "items": [self._normalize_sync_item(item) for item in items]
+        }
+        if expected_version is not None:
+            payload["expected_version"] = expected_version
         return self._request("POST", self._list_path(list_id, "syncNatural"), payload)
 
     def list(self, list_id: str) -> list[SequenceRow]:
         return self._request("GET", self._list_path(list_id), None)
 
-    def jump(self, list_id: str, item_id: str, to_sequence: int) -> list[SequenceRow]:
-        return self._request(
-            "POST",
-            self._list_path(list_id, "jump"),
-            {"item_id": item_id, "to_sequence": to_sequence},
-        )
+    def jump(
+        self,
+        list_id: str,
+        item_id: str,
+        to_sequence: int,
+        expected_version: int | None = None,
+    ) -> list[SequenceRow]:
+        payload: dict[str, Any] = {
+            "item_id": item_id,
+            "to_sequence": to_sequence,
+        }
+        if expected_version is not None:
+            payload["expected_version"] = expected_version
+        return self._request("POST", self._list_path(list_id, "jump"), payload)
 
     def reorder(
         self,
         list_id: str,
         item_id: str,
         after_item_id: str | None,
+        before_item_id: str | None = None,
+        expected_version: int | None = None,
     ) -> list[SequenceRow]:
-        return self._request(
-            "POST",
-            self._list_path(list_id, "reorder"),
-            {"item_id": item_id, "after_item_id": after_item_id},
-        )
+        payload: dict[str, Any] = {"item_id": item_id}
+        if before_item_id is not None:
+            payload["before_item_id"] = before_item_id
+        else:
+            payload["after_item_id"] = after_item_id
+        if expected_version is not None:
+            payload["expected_version"] = expected_version
+        return self._request("POST", self._list_path(list_id, "reorder"), payload)
 
-    def remove(self, list_id: str, item_id: str) -> list[SequenceRow]:
-        return self._request(
-            "POST",
-            self._list_path(list_id, "remove"),
-            {"item_id": item_id},
-        )
+    def remove(
+        self,
+        list_id: str,
+        item_id: str,
+        expected_version: int | None = None,
+    ) -> list[SequenceRow]:
+        payload: dict[str, Any] = {"item_id": item_id}
+        if expected_version is not None:
+            payload["expected_version"] = expected_version
+        return self._request("POST", self._list_path(list_id, "remove"), payload)
 
-    def reset_sticky(self, list_id: str, item_id: str) -> list[SequenceRow]:
-        return self._request(
-            "POST",
-            self._list_path(list_id, "resetSticky"),
-            {"item_id": item_id},
-        )
+    def reset_sticky(
+        self,
+        list_id: str,
+        item_id: str,
+        expected_version: int | None = None,
+    ) -> list[SequenceRow]:
+        payload: dict[str, Any] = {"item_id": item_id}
+        if expected_version is not None:
+            payload["expected_version"] = expected_version
+        return self._request("POST", self._list_path(list_id, "resetSticky"), payload)
 
-    def reset_stickies(self, list_id: str) -> list[SequenceRow]:
-        return self._request("POST", self._list_path(list_id, "resetStickies"), None)
+    def reset_stickies(
+        self,
+        list_id: str,
+        expected_version: int | None = None,
+    ) -> list[SequenceRow]:
+        payload = None if expected_version is None else {"expected_version": expected_version}
+        return self._request("POST", self._list_path(list_id, "resetStickies"), payload)
 
     def _normalize_sync_item(self, item: Mapping[str, Any]) -> dict[str, Any]:
         if "id" not in item:
@@ -96,12 +131,37 @@ class Client:
         path: str,
         body: Mapping[str, Any] | None,
     ) -> list[SequenceRow]:
+        data_obj = self._json(method, path, body, auth=True)
+        items = data_obj.get("items")
+        if not isinstance(items, list):
+            raise Error("SRO HTTP response missing items")
+
+        rows: list[SequenceRow] = []
+        for row in items:
+            if not isinstance(row, dict) or "id" not in row or "sequence" not in row:
+                continue
+            rows.append(
+                SequenceRow(
+                    id=str(row["id"]),
+                    sequence=int(row["sequence"]),
+                    sticky=row.get("sticky") is True,
+                )
+            )
+        return rows
+
+    def _json(
+        self,
+        method: str,
+        path: str,
+        body: Mapping[str, Any] | None,
+        *,
+        auth: bool,
+    ) -> dict[str, Any]:
         url = f"{self._base_url}{path}"
-        headers = {
-            "Authorization": f"Bearer {self._api_token}",
-            "X-Tenant-Id": self._tenant_id,
-            "Accept": "application/json",
-        }
+        headers = {"Accept": "application/json"}
+        if auth:
+            headers["Authorization"] = f"Bearer {self._api_token}"
+            headers["X-Tenant-Id"] = self._tenant_id
         data: bytes | None = None
         if body is not None:
             data = json.dumps(body).encode("utf-8")
@@ -137,22 +197,7 @@ class Client:
         data_obj = self._parse_json(raw)
         if "error" in data_obj and isinstance(data_obj["error"], dict):
             raise Error(str(data_obj["error"].get("message") or "SRO HTTP error"))
-        items = data_obj.get("items")
-        if not isinstance(items, list):
-            raise Error("SRO HTTP response missing items")
-
-        rows: list[SequenceRow] = []
-        for row in items:
-            if not isinstance(row, dict) or "id" not in row or "sequence" not in row:
-                continue
-            rows.append(
-                SequenceRow(
-                    id=str(row["id"]),
-                    sequence=int(row["sequence"]),
-                    sticky=row.get("sticky") is True,
-                )
-            )
-        return rows
+        return data_obj
 
     @staticmethod
     def _parse_json(raw: str) -> dict[str, Any]:

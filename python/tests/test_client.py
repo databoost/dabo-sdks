@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from databoost.sro import Client, Error, SequenceRow
+from databoost.sro import AdminClient, Client, Error, SequenceRow
 
 
 class _FakeResponse:
@@ -120,3 +120,24 @@ def test_http_error_raises_message() -> None:
     with patch("urllib.request.urlopen", side_effect=err):
         with pytest.raises(Error, match="List missing"):
             client.remove("bindery", "a")
+
+
+def test_health() -> None:
+    client = _client()
+    fake = _FakeResponse({"status": "ok"})
+    with patch("urllib.request.urlopen", return_value=fake) as urlopen:
+        assert client.health() == {"status": "ok"}
+    req = urlopen.call_args.args[0]
+    assert req.full_url == "https://sro.example.test/health"
+    assert req.get_header("Authorization") is None
+
+
+def test_admin_list_tenants() -> None:
+    admin = AdminClient(base_url="https://sro.example.test", admin_token="admin-token")
+    fake = _FakeResponse({"tenants": []})
+    with patch("urllib.request.urlopen", return_value=fake) as urlopen:
+        assert admin.list_tenants() == {"tenants": []}
+    req = urlopen.call_args.args[0]
+    assert req.full_url.endswith("/admin/v1/tenants")
+    assert req.get_header("Authorization") == "Bearer admin-token"
+    assert req.get_header("X-tenant-id") is None
