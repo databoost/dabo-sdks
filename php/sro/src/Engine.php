@@ -11,10 +11,15 @@ namespace Databoost\Sro;
 interface Engine
 {
     /**
+     * @return array{status: string}
+     */
+    public function health(): array;
+
+    /**
      * @param  list<array{id: string, sort_key?: ?string, sort_data_type?: ?string}>  $items
      * @return list<SequenceRow>
      */
-    public function syncNatural(string $listId, array $items): array;
+    public function syncNatural(string $listId, array $items, ?int $expectedVersion = null): array;
 
     /**
      * @return list<SequenceRow>
@@ -24,31 +29,37 @@ interface Engine
     /**
      * @return list<SequenceRow>
      */
-    public function jump(string $listId, string $itemId, int $toSequence): array;
+    public function jump(string $listId, string $itemId, int $toSequence, ?int $expectedVersion = null): array;
 
     /**
-     * Place $itemId after $afterItemId (null = first).
+     * Place $itemId after $afterItemId (null = first). $beforeItemId is mutually exclusive.
      *
      * @return list<SequenceRow>
      */
-    public function reorder(string $listId, string $itemId, ?string $afterItemId): array;
+    public function reorder(
+        string $listId,
+        string $itemId,
+        ?string $afterItemId,
+        ?string $beforeItemId = null,
+        ?int $expectedVersion = null,
+    ): array;
 
     /**
      * @return list<SequenceRow>
      */
-    public function remove(string $listId, string $itemId): array;
+    public function remove(string $listId, string $itemId, ?int $expectedVersion = null): array;
 
     /**
      * Clear sticky overlay on one item, then densify naturals.
      *
      * @return list<SequenceRow>
      */
-    public function resetSticky(string $listId, string $itemId): array;
+    public function resetSticky(string $listId, string $itemId, ?int $expectedVersion = null): array;
 
     /**
      * Clear sticky overlay on every row of this list, then densify naturals.
      *
      * @return list<SequenceRow>
      */
-    public function resetStickies(string $listId): array;
+    public function resetStickies(string $listId, ?int $expectedVersion = null): array;
 }

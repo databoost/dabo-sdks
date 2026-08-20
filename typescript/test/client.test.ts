@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { Client, SroError } from "../src/index.js";
+import { AdminClient, Client, SroError } from "../src/index.js";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -85,6 +85,17 @@ describe("Client", () => {
     expect(calls[1]?.body).toBeUndefined();
   });
 
+  it("health hits /health without tenant auth", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("https://sro.example.test/health");
+      expect(init?.method).toBe("GET");
+      expect(init?.headers).toEqual({ Accept: "application/json" });
+      return jsonResponse({ status: "ok" });
+    }) as unknown as typeof fetch;
+
+    await expect(client(fetchImpl).health()).resolves.toEqual({ status: "ok" });
+  });
+
   it("defaults missing sticky to false and ignores major_minor", async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse({
@@ -111,5 +122,26 @@ describe("Client", () => {
     await expect(client(fetchImpl).remove("bindery", "a")).rejects.toThrow(
       "List missing",
     );
+  });
+});
+
+describe("AdminClient", () => {
+  it("listTenants uses admin bearer and no tenant header", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("https://sro.example.test/admin/v1/tenants");
+      expect(init?.headers).toMatchObject({
+        Authorization: "Bearer admin-token",
+        Accept: "application/json",
+      });
+      expect(init?.headers).not.toHaveProperty("X-Tenant-Id");
+      return jsonResponse({ tenants: [] });
+    }) as unknown as typeof fetch;
+
+    const admin = new AdminClient({
+      baseUrl: "https://sro.example.test",
+      adminToken: "admin-token",
+      fetch: fetchImpl,
+    });
+    await expect(admin.listTenants()).resolves.toEqual({ tenants: [] });
   });
 });

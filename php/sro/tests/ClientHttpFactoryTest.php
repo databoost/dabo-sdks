@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace Databoost\Sro\Tests;
 
+use Databoost\Sro\AdminClient;
 use Databoost\Sro\Client;
 use Databoost\Sro\Engine;
 use Databoost\Sro\HttpEngine;
@@ -18,6 +19,21 @@ final class ClientHttpFactoryTest extends TestCase
         $client = Client::http('https://sro.databoost.com', 'token', 'tenant');
         $this->assertInstanceOf(Client::class, $client);
         $this->assertInstanceOf(HttpEngine::class, $client->engine());
+    }
+
+    public function test_http_admin_factory_returns_client(): void
+    {
+        $admin = AdminClient::http('https://sro.databoost.com', 'admin-token');
+        $this->assertInstanceOf(AdminClient::class, $admin);
+    }
+
+    public function test_client_delegates_health(): void
+    {
+        $engine = new RecordingEngine();
+        $client = new Client($engine);
+
+        $this->assertSame(['status' => 'ok'], $client->health());
+        $this->assertSame(['health'], $engine->calls);
     }
 
     public function test_client_delegates_reset_verbs(): void
@@ -61,7 +77,14 @@ final class RecordingEngine implements Engine
     /** @var list<string> */
     public array $resetStickiesArgs = [];
 
-    public function syncNatural(string $listId, array $items): array
+    public function health(): array
+    {
+        $this->calls[] = 'health';
+
+        return ['status' => 'ok'];
+    }
+
+    public function syncNatural(string $listId, array $items, ?int $expectedVersion = null): array
     {
         $this->calls[] = 'syncNatural';
 
@@ -75,28 +98,33 @@ final class RecordingEngine implements Engine
         return [];
     }
 
-    public function jump(string $listId, string $itemId, int $toSequence): array
+    public function jump(string $listId, string $itemId, int $toSequence, ?int $expectedVersion = null): array
     {
         $this->calls[] = 'jump';
 
         return [];
     }
 
-    public function reorder(string $listId, string $itemId, ?string $afterItemId): array
-    {
+    public function reorder(
+        string $listId,
+        string $itemId,
+        ?string $afterItemId,
+        ?string $beforeItemId = null,
+        ?int $expectedVersion = null,
+    ): array {
         $this->calls[] = 'reorder';
 
         return [];
     }
 
-    public function remove(string $listId, string $itemId): array
+    public function remove(string $listId, string $itemId, ?int $expectedVersion = null): array
     {
         $this->calls[] = 'remove';
 
         return [];
     }
 
-    public function resetSticky(string $listId, string $itemId): array
+    public function resetSticky(string $listId, string $itemId, ?int $expectedVersion = null): array
     {
         $this->calls[] = 'resetSticky';
         $this->resetStickyArgs = [$listId, $itemId];
@@ -104,7 +132,7 @@ final class RecordingEngine implements Engine
         return [new SequenceRow($itemId, 1, false)];
     }
 
-    public function resetStickies(string $listId): array
+    public function resetStickies(string $listId, ?int $expectedVersion = null): array
     {
         $this->calls[] = 'resetStickies';
         $this->resetStickiesArgs = [$listId];

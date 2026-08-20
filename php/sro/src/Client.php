@@ -37,12 +37,20 @@ final class Client
     }
 
     /**
+     * @return array{status: string}
+     */
+    public function health(): array
+    {
+        return $this->engine->health();
+    }
+
+    /**
      * @param  list<array{id: string, sort_key?: ?string, sort_data_type?: ?string}>  $items
      * @return list<SequenceRow>
      */
-    public function syncNatural(string $listId, array $items): array
+    public function syncNatural(string $listId, array $items, ?int $expectedVersion = null): array
     {
-        return $this->engine->syncNatural($listId, $items);
+        return $this->engine->syncNatural($listId, $items, $expectedVersion);
     }
 
     /**
@@ -56,41 +64,46 @@ final class Client
     /**
      * @return list<SequenceRow>
      */
-    public function jump(string $listId, string $itemId, int $toSequence): array
+    public function jump(string $listId, string $itemId, int $toSequence, ?int $expectedVersion = null): array
     {
-        return $this->engine->jump($listId, $itemId, $toSequence);
+        return $this->engine->jump($listId, $itemId, $toSequence, $expectedVersion);
     }
 
     /**
      * @return list<SequenceRow>
      */
-    public function reorder(string $listId, string $itemId, ?string $afterItemId): array
-    {
-        return $this->engine->reorder($listId, $itemId, $afterItemId);
+    public function reorder(
+        string $listId,
+        string $itemId,
+        ?string $afterItemId,
+        ?string $beforeItemId = null,
+        ?int $expectedVersion = null,
+    ): array {
+        return $this->engine->reorder($listId, $itemId, $afterItemId, $beforeItemId, $expectedVersion);
     }
 
     /**
      * @return list<SequenceRow>
      */
-    public function remove(string $listId, string $itemId): array
+    public function remove(string $listId, string $itemId, ?int $expectedVersion = null): array
     {
-        return $this->engine->remove($listId, $itemId);
+        return $this->engine->remove($listId, $itemId, $expectedVersion);
     }
 
     /**
      * @return list<SequenceRow>
      */
-    public function resetSticky(string $listId, string $itemId): array
+    public function resetSticky(string $listId, string $itemId, ?int $expectedVersion = null): array
     {
-        return $this->engine->resetSticky($listId, $itemId);
+        return $this->engine->resetSticky($listId, $itemId, $expectedVersion);
     }
 
     /**
      * @return list<SequenceRow>
      */
-    public function resetStickies(string $listId): array
+    public function resetStickies(string $listId, ?int $expectedVersion = null): array
     {
-        return $this->engine->resetStickies($listId);
+        return $this->engine->resetStickies($listId, $expectedVersion);
     }
 
     /**
