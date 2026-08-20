@@ -40,13 +40,13 @@ client.sync_natural("bindery", [
 ])
 
 rows = client.list("bindery")
-# => [SequenceRow(id='a', sequence=1), ...]
+# => [SequenceRow(id='a', sequence=1, sticky=False), ...]
 
 client.jump("bindery", "b", 1)
 client.reorder("bindery", "a", "b")  # place a after b
 client.remove("bindery", "a")
-client.reset_sticky("bindery", "b")  # clear one sticky, re-rank naturals
-client.reset_stickies("bindery")     # clear all stickies, re-rank naturals
+client.reset_sticky("bindery", "b")  # clear one sticky overlay
+client.reset_stickies("bindery")     # clear all overlays on this list
 ```
 
 Method names match the Ruby façade (`sync_natural`, `reset_sticky`, …). PHP uses camelCase for the same operations.

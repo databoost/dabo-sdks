@@ -1,3 +1,4 @@
+# © 2026 Bradley Giesbrecht, © 2026 DataBoost™, LLC, © 2026 DataBoost™ Inc. All Rights Reserved.
 """Thin HTTP client. Method names mirror the Ruby client / OpenAPI (snake_case)."""
 
 from __future__ import annotations
@@ -16,10 +17,11 @@ from databoost.sro._errors import Error
 class SequenceRow:
     id: str
     sequence: int
+    sticky: bool = False
 
 
 class Client:
-    """Stateful Sticky Relative Order client — dense 1…n sequences only."""
+    """Stateful Sticky Relative Order client — dense 1…n sequences plus sticky flag."""
 
     def __init__(self, *, base_url: str, api_token: str, tenant_id: str) -> None:
         self._base_url = base_url.rstrip("/")
@@ -143,7 +145,13 @@ class Client:
         for row in items:
             if not isinstance(row, dict) or "id" not in row or "sequence" not in row:
                 continue
-            rows.append(SequenceRow(id=str(row["id"]), sequence=int(row["sequence"])))
+            rows.append(
+                SequenceRow(
+                    id=str(row["id"]),
+                    sequence=int(row["sequence"]),
+                    sticky=row.get("sticky") is True,
+                )
+            )
         return rows
 
     @staticmethod
