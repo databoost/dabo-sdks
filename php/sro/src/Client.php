@@ -1,4 +1,5 @@
 <?php
+// © 2026 Bradley Giesbrecht, © 2026 DataBoost™, LLC, © 2026 DataBoost™ Inc. All Rights Reserved.
 
 declare(strict_types=1);
 
@@ -12,8 +13,9 @@ namespace Databoost\Sro;
  * $client->syncNatural('bindery', [
  *     ['id' => '1', 'sort_key' => '2026-08-01', 'sort_data_type' => 'date'],
  * ]);
- * $rows = $client->list('bindery'); // SequenceRow id + sequence 1…n
+ * $rows = $client->list('bindery'); // SequenceRow id + sequence + sticky
  * $client->jump('bindery', '1', 3);
+ * $client->resetSticky('bindery', '1');
  */
 final class Client
 {
@@ -76,6 +78,24 @@ final class Client
     }
 
     /**
+     * @return list<SequenceRow>
+     */
+    public function resetSticky(string $listId, string $itemId): array
+    {
+        return $this->engine->resetSticky($listId, $itemId);
+    }
+
+    /**
+     * @return list<SequenceRow>
+     */
+    public function resetStickies(string $listId): array
+    {
+        return $this->engine->resetStickies($listId);
+    }
+
+    /**
+     * Rows whose sequence or sticky flag changed (or that are new).
+     *
      * @param  list<SequenceRow>  $prev
      * @param  list<SequenceRow>  $next
      * @return list<SequenceRow>
@@ -84,12 +104,14 @@ final class Client
     {
         $prevMap = [];
         foreach ($prev as $row) {
-            $prevMap[$row->id] = $row->sequence;
+            $prevMap[$row->id] = $row;
         }
 
         $changed = [];
         foreach ($next as $row) {
-            if (! isset($prevMap[$row->id]) || $prevMap[$row->id] !== $row->sequence) {
+            if (! isset($prevMap[$row->id])
+                || $prevMap[$row->id]->sequence !== $row->sequence
+                || $prevMap[$row->id]->sticky !== $row->sticky) {
                 $changed[] = $row;
             }
         }

@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# © 2026 Bradley Giesbrecht, © 2026 DataBoost™, LLC, © 2026 DataBoost™ Inc. All Rights Reserved.
 
 require 'json'
 require 'net/http'
@@ -8,7 +9,15 @@ module Databoost
   module Sro
     # Thin HTTP client. Method names mirror the PHP Client / OpenAPI.
     class Client
-      SequenceRow = Struct.new(:id, :sequence, keyword_init: true)
+      SequenceRow = Struct.new(:id, :sequence, :sticky, keyword_init: true)
+
+      def self.row_from_api(row)
+        SequenceRow.new(
+          id: row['id'].to_s,
+          sequence: row['sequence'].to_i,
+          sticky: row['sticky'] == true
+        )
+      end
 
       def initialize(base_url:, api_token:, tenant_id:)
         @base_url = base_url.sub(%r{/\z}, '')
@@ -44,6 +53,14 @@ module Databoost
 
       def remove(list_id, item_id)
         request(:post, list_path(list_id, 'remove'), { item_id: item_id })
+      end
+
+      def reset_sticky(list_id, item_id)
+        request(:post, list_path(list_id, 'resetSticky'), { item_id: item_id })
+      end
+
+      def reset_stickies(list_id)
+        request(:post, list_path(list_id, 'resetStickies'), nil)
       end
 
       private
@@ -90,9 +107,7 @@ module Databoost
           raise Error, message
         end
 
-        (data['items'] || []).map do |row|
-          SequenceRow.new(id: row['id'].to_s, sequence: row['sequence'].to_i)
-        end
+        (data['items'] || []).map { |row| self.class.row_from_api(row) }
       end
     end
   end

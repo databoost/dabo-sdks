@@ -1,16 +1,20 @@
+# © 2026 Bradley Giesbrecht, © 2026 DataBoost™, LLC, © 2026 DataBoost™ Inc. All Rights Reserved.
 openapi: 3.0.3
 info:
   title: DataBoost SRO API
   description: |
     Sticky Relative Order (SRO) ranking service.
-    Clients receive dense production sequence 1…n only — never major.minor /
-    sequence_default / sequence_override.
-  version: 1.0.0
+    Clients receive dense production sequence 1…n plus sticky (bool).
+    Never major.minor / sequence_default / sequence_override on
+    production/staging tenants.
+    Ranking Bearer is local (hashed px_sro_api_tokens or optional SRO_API_TOKEN).
+    Console is SoR for tenant directory; provision via /admin/v1/tenants (SRO_ADMIN_TOKEN).
+  version: 1.2.0
 servers:
-  - url: https://sro.databoost.com
-    description: Production (AWS)
   - url: http://127.0.0.1:8080
     description: Local sidecar
+  - url: https://sro.databoost.com
+    description: Production
 security:
   - BearerAuth: []
     TenantHeader: []
@@ -33,12 +37,213 @@ paths:
                     type: string
                     example: ok
 
+  /admin/v1/tenants:
+    get:
+      summary: List local auth-mirror tenants
+      description: |
+        Ids, org_id, env, name, status only. No token plaintext or hashes.
+        Ranking auth stays local; this is the audit snapshot console compares
+        to px_org_service_tenants (service=sro).
+      operationId: adminListTenants
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Tenant directory (mirror)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+
+  /admin/v1/tenants/reconcile:
+    post:
+      summary: Disable tenants missing from the console SoR snapshot
+      description: |
+        Console pushes the known service=sro tenant_id set. SRO disables local
+        rows not in that set (orphans). Does not delete tenants, tokens, or
+        ranking lists. Does not re-enable SoR tenants (use PATCH). Does not
+        call console from ranking requests. Empty tenant_ids requires
+        allow_empty=true.
+      operationId: adminReconcileTenants
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminReconcileRequest'
+      responses:
+        '200':
+          description: Reconcile result (dry_run reports the same lists without writing)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminReconcileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+
+  /admin/v1/tenants/{tenant_id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    put:
+      summary: Provision or upsert a tenant auth mirror
+      description: |
+        Console (dabo-org) is the only v1 caller. Creates the local tenant row
+        and, on create, issues a token (hash stored; plaintext returned once).
+        tenant_id is immutable. org_id is opaque (logs only; no FK to console).
+      operationId: adminProvisionTenant
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminProvisionRequest'
+      responses:
+        '201':
+          description: Created (token included)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '200':
+          description: Updated (no new token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+    patch:
+      summary: Update tenant env, name, or status
+      operationId: adminUpdateTenant
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+    delete:
+      summary: Delete tenant, tokens, and ranking rows
+      description: |
+        Purges px_sro_items / px_sro_lists for the tenant, deletes tokens and
+        the tenant row. Idempotent if already gone.
+      operationId: adminDeleteTenant
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Deleted (or already gone)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDeleteResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+
+  /admin/v1/tenants/{tenant_id}/token:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      summary: Regenerate tenant token
+      description: Revoke all active tokens, issue a new one, return plaintext once.
+      operationId: adminRegenerateToken
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token_label:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: New token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+    delete:
+      summary: Revoke all active tokens for the tenant
+      operationId: adminRevokeToken
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant_id, revoked]
+                properties:
+                  tenant_id:
+                    type: string
+                  revoked:
+                    type: integer
+                    description: Number of tokens revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+
   /v1/tenants/{tenant_id}/lists/{list_id}:
     parameters:
       - $ref: '#/components/parameters/TenantId'
       - $ref: '#/components/parameters/ListId'
     get:
       summary: List production sequences
+      description: |
+        Dense snapshot. Each row is {id, sequence, sticky}. Development
+        tenants also include major_minor. Production/staging never include
+        major.minor.
       operationId: list
       responses:
         '200':
@@ -174,12 +379,90 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
+  /v1/tenants/{tenant_id}/lists/{list_id}/resetSticky:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ListId'
+    post:
+      summary: Reset one item's sticky major/minor and re-rank naturals
+      description: |
+        Clears sticky_major / sticky_minor on the target item, then reassigns
+        dense natural_major 1…n from stored sort_key / sort_data_type.
+        For every row, use resetStickies instead.
+      operationId: resetSticky
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetStickyRequest'
+      responses:
+        '200':
+          description: Updated sequence snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/tenants/{tenant_id}/lists/{list_id}/resetStickies:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ListId'
+    post:
+      summary: Reset every sticky major/minor and re-rank naturals
+      description: |
+        Clears sticky_major / sticky_minor on every row, then reassigns dense
+        natural_major 1…n from stored sort_key / sort_data_type.
+        Same densify rules as syncNatural; no items payload required.
+      operationId: resetStickies
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetStickiesRequest'
+      responses:
+        '200':
+          description: Updated sequence snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SequenceSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
 components:
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
-      description: Plant / tenant API token (SRO_API_TOKEN)
+      description: |
+        Env global SRO_API_TOKEN, optionally scoped by SRO_API_TOKEN_TENANTS
+        (comma-separated tenant ids; empty = any tenant). Disabled tenant rows
+        are rejected even with the global token. Or a DB-issued per-tenant token
+        (sro_<prefix>_<secret>, hashed in px_sro_api_tokens). Ranking routes only.
+    AdminBearer:
+      type: http
+      scheme: bearer
+      description: |
+        Env SRO_ADMIN_TOKEN. Service-to-service only (console). Not a tenant
+        Bearer. Do not send X-Tenant-Id. Unconfigured (empty) → 503.
     TenantHeader:
       type: apiKey
       in: header
@@ -212,7 +495,7 @@ components:
   schemas:
     SequenceRow:
       type: object
-      required: [id, sequence]
+      required: [id, sequence, sticky]
       properties:
         id:
           type: string
@@ -221,11 +504,19 @@ components:
           type: integer
           minimum: 1
           description: Dense production sequence 1…n
+        sticky:
+          type: boolean
+          description: |
+            True when this row has a service-owned sticky overlay. Always
+            present. UIs use this to show a per-row clear control. Never
+            exposes major.minor.
         major_minor:
           type: string
           nullable: true
           description: |
-            Dev-only label (SRO_ENV=development): sticky as "M.m", else natural major as "M".
+            Dev-only label when the tenant row env is development (also accepts
+            dev / local): sticky as "M.m", else natural major as "M". Omitted for
+            production / staging (and missing tenant rows). Not gated on process SRO_ENV.
             Backed by integer natural_major / sticky_major / sticky_minor — never float storage.
           example: "1.2"
 
@@ -309,6 +600,169 @@ components:
           type: integer
           nullable: true
 
+    ResetStickyRequest:
+      type: object
+      required: [item_id]
+      properties:
+        item_id:
+          type: string
+          description: Item id whose sticky columns to null.
+          example: job-123
+        expected_version:
+          type: integer
+          nullable: true
+
+    ResetStickiesRequest:
+      type: object
+      properties:
+        expected_version:
+          type: integer
+          nullable: true
+
+    AdminProvisionRequest:
+      type: object
+      required: [org_id, env, name]
+      properties:
+        org_id:
+          type: string
+          description: Opaque org id (logs only; no FK to console).
+        env:
+          type: string
+          enum: [production, staging, development]
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+          default: active
+        token_label:
+          type: string
+          nullable: true
+          description: Used only when a token is issued (create).
+
+    AdminUpdateRequest:
+      type: object
+      properties:
+        org_id:
+          type: string
+        env:
+          type: string
+          enum: [production, staging, development]
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+
+    AdminIssuedToken:
+      type: object
+      description: Present only when a new token is issued. Plaintext once; service stores hash only. Never log.
+      required: [plaintext, token_id, prefix]
+      properties:
+        plaintext:
+          type: string
+          description: Bearer secret returned once (`sro_<8hex>_<48hex>`).
+        token_id:
+          type: integer
+        prefix:
+          type: string
+
+    AdminTenantResponse:
+      type: object
+      required: [tenant_id, org_id, env, name, status, created]
+      properties:
+        tenant_id:
+          type: string
+        org_id:
+          type: string
+        env:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        created:
+          type: boolean
+        token:
+          $ref: '#/components/schemas/AdminIssuedToken'
+
+    AdminDeleteResponse:
+      type: object
+      required: [tenant_id, deleted, existed]
+      properties:
+        tenant_id:
+          type: string
+        deleted:
+          type: boolean
+        existed:
+          type: boolean
+          description: false when the tenant row was already gone (idempotent).
+
+    AdminTenantListResponse:
+      type: object
+      required: [tenants]
+      properties:
+        tenants:
+          type: array
+          items:
+            type: object
+            required: [tenant_id, org_id, env, name, status]
+            properties:
+              tenant_id:
+                type: string
+              org_id:
+                type: string
+              env:
+                type: string
+              name:
+                type: string
+              status:
+                type: string
+                enum: [active, disabled]
+
+    AdminReconcileRequest:
+      type: object
+      required: [tenant_ids]
+      properties:
+        tenant_ids:
+          type: array
+          items:
+            type: string
+          description: Console SoR tenant_ids for service=sro.
+        dry_run:
+          type: boolean
+          default: false
+        allow_empty:
+          type: boolean
+          default: false
+          description: Required if tenant_ids is empty (would disable every local tenant).
+
+    AdminReconcileResponse:
+      type: object
+      required: [dry_run, kept, disabled, already_disabled, missing_locally]
+      properties:
+        dry_run:
+          type: boolean
+        kept:
+          type: array
+          items:
+            type: string
+          description: Local tenant_ids present in the SoR snapshot (status unchanged).
+        disabled:
+          type: array
+          items:
+            type: string
+          description: Were active and not in the snapshot (disabled, or would be when dry_run).
+        already_disabled:
+          type: array
+          items:
+            type: string
+        missing_locally:
+          type: array
+          items:
+            type: string
+          description: SoR ids with no local mirror row (console should PUT).
+
     ErrorBody:
       type: object
       required: [error]
@@ -344,6 +798,12 @@ components:
             $ref: '#/components/schemas/ErrorBody'
     Conflict:
       description: Version mismatch
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    AdminNotConfigured:
+      description: SRO_ADMIN_TOKEN is not set
       content:
         application/json:
           schema:

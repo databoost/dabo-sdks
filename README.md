@@ -9,6 +9,7 @@ These packages **only call the API**. They do **not** embed ranking logic (natur
 | [`php/sro/`](php/sro/) | `databoost/sro` | PHP 8.2+ |
 | [`ruby/`](ruby/) | `databoost-sro` | Ruby 3.1+ |
 | [`python/`](python/) | `databoost-sro` | Python 3.10+ |
+| [`typescript/`](typescript/) | `databoost-sro` | TypeScript (Node 18+) |
 | [`openapi/sro-v1.yaml`](openapi/sro-v1.yaml) | API contract | — |
 
 Live SRO API: <https://sro.databoost.com>
@@ -47,14 +48,16 @@ $client->syncNatural('bindery', [
     ['id' => '102', 'sort_key' => '2026-08-10', 'sort_data_type' => 'date'],
 ]);
 
-// Dense production sequence 1…n
+// Dense production sequence 1…n plus sticky flag
 foreach ($client->list('bindery') as $row) {
-    // $row->id, $row->sequence
+    // $row->id, $row->sequence, $row->sticky
 }
 
 $client->jump('bindery', '102', 1);
 $client->reorder('bindery', '101', afterItemId: null); // move to first
 $client->remove('bindery', '101');
+$client->resetSticky('bindery', '102');   // clear one sticky overlay
+$client->resetStickies('bindery');        // clear all overlays on this list
 ```
 
 Namespace `Databoost\Sro`. `Client::http(...)` returns `Client`. Tests may inject a fake via `new Client($engine)` (`Engine` interface).
@@ -82,6 +85,8 @@ client.sync_natural('bindery', [
 
 rows = client.list('bindery')
 client.jump('bindery', 'b', 1)
+client.reset_sticky('bindery', 'b')
+client.reset_stickies('bindery')
 ```
 
 See [`ruby/README.md`](ruby/README.md).
@@ -116,23 +121,59 @@ client.reset_stickies("bindery")
 
 See [`python/README.md`](python/README.md).
 
+## TypeScript
+
+```json
+{
+  "dependencies": {
+    "databoost-sro": "file:../dabo-sdks/typescript"
+  }
+}
+```
+
+```ts
+import { Client } from "databoost-sro";
+
+const client = new Client({
+  baseUrl: process.env.SRO_BASE_URL!, // e.g. https://sro.databoost.com
+  apiToken: process.env.SRO_API_TOKEN!,
+  tenantId: "demo",
+});
+
+await client.syncNatural("bindery", [
+  { id: "a", sort_key: "2026-08-01", sort_data_type: "date" },
+  { id: "b", sort_key: "2026-08-10", sort_data_type: "date" },
+]);
+
+const rows = await client.list("bindery");
+await client.jump("bindery", "b", 1);
+await client.resetSticky("bindery", "b");
+await client.resetStickies("bindery");
+```
+
+Methods are **async** (native `fetch`). Names match PHP / OpenAPI camelCase.
+
+See [`typescript/README.md`](typescript/README.md).
+
 ## API surface
 
 | Method | Purpose |
 |--------|---------|
 | `syncNatural(listId, items)` | Push `{id, sort_key, sort_data_type}`; service assigns the natural spine |
-| `list(listId)` | Current order as `{id, sequence}` (1…n) |
+| `list(listId)` | Current order as `{id, sequence, sticky}` (sequence 1…n) |
 | `jump(listId, itemId, toSequence)` | Move an item to a display slot |
 | `reorder(listId, itemId, afterItemId)` | Place after a neighbor (`null` = first) |
 | `remove(listId, itemId)` | Drop an item; service compacts |
+| `resetSticky(listId, itemId)` | Clear one item’s sticky overlay, then densify naturals |
+| `resetStickies(listId)` | Clear every sticky overlay on that list, then densify naturals |
 
 Auth: `Authorization: Bearer <token>` + `X-Tenant-Id: <tenant>` (must match the path `/v1/tenants/{tenant}/…`).
 
-Responses contain dense sequences only — never internal ranking keys.
+Responses contain `{id, sequence, sticky}` — never internal ranking keys. `sticky` is always present (`false` on naturals).
 
 ## Adding a language / another PHP SDK
 
-New clients (JS/TS, Go…) and additional PHP packages (`php/<product>/`) belong here. Match the method names above and return `{id, sequence}`; keep all ranking on the service.
+New clients (Go…) and additional PHP packages (`php/<product>/`) belong here. Match the method names above and return `{id, sequence, sticky}`; keep all ranking on the service.
 
 ## License
 
