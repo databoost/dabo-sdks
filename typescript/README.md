@@ -38,13 +38,13 @@ await client.syncNatural("bindery", [
 ]);
 
 const rows = await client.list("bindery");
-// => [{ id: "a", sequence: 1 }, ...]
+// => [{ id: "a", sequence: 1, sticky: false }, ...]
 
 await client.jump("bindery", "b", 1);
 await client.reorder("bindery", "a", "b"); // place a after b
 await client.remove("bindery", "a");
-await client.resetSticky("bindery", "b"); // clear one sticky, re-rank naturals
-await client.resetStickies("bindery"); // clear all stickies, re-rank naturals
+await client.resetSticky("bindery", "b"); // clear one sticky overlay
+await client.resetStickies("bindery"); // clear all overlays on this list
 ```
 
 Method names match PHP / OpenAPI (`syncNatural`, `resetSticky`). Ruby/Python use snake_case for the same operations.

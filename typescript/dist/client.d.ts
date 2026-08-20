@@ -1,7 +1,8 @@
-/** Dense production sequence row (1…n). Never includes ranking keys. */
+/** Dense production sequence row (1…n) plus sticky flag. Never ranking keys. */
 export type SequenceRow = {
     id: string;
     sequence: number;
+    sticky: boolean;
 };
 export type SyncNaturalItem = {
     id: string;

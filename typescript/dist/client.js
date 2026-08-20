@@ -1,3 +1,4 @@
+// © 2026 Bradley Giesbrecht, © 2026 DataBoost™, LLC, © 2026 DataBoost™ Inc. All Rights Reserved.
 import { SroError } from "./errors.js";
 /**
  * Thin HTTP client for the SRO service.
@@ -114,7 +115,11 @@ export class Client {
             const r = row;
             if (r.id === undefined || r.sequence === undefined)
                 continue;
-            rows.push({ id: String(r.id), sequence: Number(r.sequence) });
+            rows.push({
+                id: String(r.id),
+                sequence: Number(r.sequence),
+                sticky: r.sticky === true,
+            });
         }
         return rows;
     }

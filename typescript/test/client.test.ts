@@ -30,8 +30,8 @@ describe("Client", () => {
       });
       return jsonResponse({
         items: [
-          { id: "a", sequence: 1 },
-          { id: "b", sequence: 2 },
+          { id: "a", sequence: 1, sticky: false },
+          { id: "b", sequence: 2, sticky: true },
         ],
         version: 3,
       });
@@ -39,8 +39,8 @@ describe("Client", () => {
 
     const rows = await client(fetchImpl).list("bindery");
     expect(rows).toEqual([
-      { id: "a", sequence: 1 },
-      { id: "b", sequence: 2 },
+      { id: "a", sequence: 1, sticky: false },
+      { id: "b", sequence: 2, sticky: true },
     ]);
   });
 
@@ -53,13 +53,16 @@ describe("Client", () => {
           { id: "a", sort_key: "2026-08-01", sort_data_type: "date" },
         ],
       });
-      return jsonResponse({ items: [{ id: "a", sequence: 1 }], version: 1 });
+      return jsonResponse({
+        items: [{ id: "a", sequence: 1, sticky: false }],
+        version: 1,
+      });
     }) as unknown as typeof fetch;
 
     const rows = await client(fetchImpl).syncNatural("bindery", [
       { id: "a", sort_key: "2026-08-01", sort_data_type: "date" },
     ]);
-    expect(rows).toEqual([{ id: "a", sequence: 1 }]);
+    expect(rows).toEqual([{ id: "a", sequence: 1, sticky: false }]);
   });
 
   it("resetSticky and resetStickies hit the right paths", async () => {
@@ -80,6 +83,18 @@ describe("Client", () => {
     expect(JSON.parse(calls[0]?.body ?? "")).toEqual({ item_id: "job-1" });
     expect(calls[1]?.url).toMatch(/\/resetStickies$/);
     expect(calls[1]?.body).toBeUndefined();
+  });
+
+  it("defaults missing sticky to false and ignores major_minor", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        items: [{ id: "a", sequence: 1, major_minor: "5.1" }],
+        version: 1,
+      }),
+    ) as unknown as typeof fetch;
+
+    const rows = await client(fetchImpl).list("bindery");
+    expect(rows).toEqual([{ id: "a", sequence: 1, sticky: false }]);
   });
 
   it("maps HTTP error message", async () => {

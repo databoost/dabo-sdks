@@ -1,9 +1,11 @@
+// © 2026 Bradley Giesbrecht, © 2026 DataBoost™, LLC, © 2026 DataBoost™ Inc. All Rights Reserved.
 import { SroError } from "./errors.js";
 
-/** Dense production sequence row (1…n). Never includes ranking keys. */
+/** Dense production sequence row (1…n) plus sticky flag. Never ranking keys. */
 export type SequenceRow = {
   id: string;
   sequence: number;
+  sticky: boolean;
 };
 
 export type SyncNaturalItem = {
@@ -163,7 +165,11 @@ export class Client {
       if (typeof row !== "object" || row === null) continue;
       const r = row as JsonObject;
       if (r.id === undefined || r.sequence === undefined) continue;
-      rows.push({ id: String(r.id), sequence: Number(r.sequence) });
+      rows.push({
+        id: String(r.id),
+        sequence: Number(r.sequence),
+        sticky: r.sticky === true,
+      });
     }
     return rows;
   }
