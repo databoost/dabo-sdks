@@ -24,7 +24,14 @@ final class HttpEngine implements Engine
         $this->baseUrl = rtrim($baseUrl, '/');
     }
 
-    public function syncNatural(string $listId, array $items): array
+    public function health(): array
+    {
+        $data = Transport::json('GET', $this->baseUrl.'/health', ['Accept: application/json'], null);
+
+        return ['status' => (string) ($data['status'] ?? '')];
+    }
+
+    public function syncNatural(string $listId, array $items, ?int $expectedVersion = null): array
     {
         $payloadItems = [];
         foreach ($items as $item) {
@@ -38,9 +45,9 @@ final class HttpEngine implements Engine
             ];
         }
 
-        return $this->request('POST', $this->listPath($listId).'/syncNatural', [
+        return $this->request('POST', $this->listPath($listId).'/syncNatural', $this->withVersion([
             'items' => $payloadItems,
-        ]);
+        ], $expectedVersion));
     }
 
     public function list(string $listId): array
@@ -48,39 +55,63 @@ final class HttpEngine implements Engine
         return $this->request('GET', $this->listPath($listId), null);
     }
 
-    public function jump(string $listId, string $itemId, int $toSequence): array
+    public function jump(string $listId, string $itemId, int $toSequence, ?int $expectedVersion = null): array
     {
-        return $this->request('POST', $this->listPath($listId).'/jump', [
+        return $this->request('POST', $this->listPath($listId).'/jump', $this->withVersion([
             'item_id' => $itemId,
             'to_sequence' => $toSequence,
-        ]);
+        ], $expectedVersion));
     }
 
-    public function reorder(string $listId, string $itemId, ?string $afterItemId): array
+    public function reorder(
+        string $listId,
+        string $itemId,
+        ?string $afterItemId,
+        ?string $beforeItemId = null,
+        ?int $expectedVersion = null,
+    ): array {
+        $body = ['item_id' => $itemId];
+        if ($beforeItemId !== null) {
+            $body['before_item_id'] = $beforeItemId;
+        } else {
+            $body['after_item_id'] = $afterItemId;
+        }
+
+        return $this->request('POST', $this->listPath($listId).'/reorder', $this->withVersion($body, $expectedVersion));
+    }
+
+    public function remove(string $listId, string $itemId, ?int $expectedVersion = null): array
     {
-        return $this->request('POST', $this->listPath($listId).'/reorder', [
+        return $this->request('POST', $this->listPath($listId).'/remove', $this->withVersion([
             'item_id' => $itemId,
-            'after_item_id' => $afterItemId,
-        ]);
+        ], $expectedVersion));
     }
 
-    public function remove(string $listId, string $itemId): array
+    public function resetSticky(string $listId, string $itemId, ?int $expectedVersion = null): array
     {
-        return $this->request('POST', $this->listPath($listId).'/remove', [
+        return $this->request('POST', $this->listPath($listId).'/resetSticky', $this->withVersion([
             'item_id' => $itemId,
-        ]);
+        ], $expectedVersion));
     }
 
-    public function resetSticky(string $listId, string $itemId): array
+    public function resetStickies(string $listId, ?int $expectedVersion = null): array
     {
-        return $this->request('POST', $this->listPath($listId).'/resetSticky', [
-            'item_id' => $itemId,
-        ]);
+        $body = $expectedVersion === null ? null : ['expected_version' => $expectedVersion];
+
+        return $this->request('POST', $this->listPath($listId).'/resetStickies', $body);
     }
 
-    public function resetStickies(string $listId): array
+    /**
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     */
+    private function withVersion(array $body, ?int $expectedVersion): array
     {
-        return $this->request('POST', $this->listPath($listId).'/resetStickies', null);
+        if ($expectedVersion !== null) {
+            $body['expected_version'] = $expectedVersion;
+        }
+
+        return $body;
     }
 
     private function listPath(string $listId): string
@@ -94,33 +125,18 @@ final class HttpEngine implements Engine
      */
     private function request(string $method, string $path, ?array $body): array
     {
-        $url = $this->baseUrl.$path;
         $headers = [
             'Authorization: Bearer '.$this->apiToken,
             'X-Tenant-Id: '.$this->tenantId,
             'Accept: application/json',
         ];
-
         $payload = null;
         if ($body !== null) {
             $payload = json_encode($body, JSON_THROW_ON_ERROR);
             $headers[] = 'Content-Type: application/json';
         }
 
-        if (function_exists('curl_init')) {
-            $json = $this->curl($method, $url, $headers, $payload);
-        } else {
-            $json = $this->stream($method, $url, $headers, $payload);
-        }
-
-        $data = json_decode($json, true);
-        if (! is_array($data)) {
-            throw new RuntimeException('SRO HTTP response was not JSON.');
-        }
-        if (isset($data['error']) && is_array($data['error'])) {
-            $msg = (string) ($data['error']['message'] ?? 'SRO HTTP error');
-            throw new RuntimeException($msg);
-        }
+        $data = Transport::json($method, $this->baseUrl.$path, $headers, $payload);
         if (! isset($data['items']) || ! is_array($data['items'])) {
             throw new RuntimeException('SRO HTTP response missing items.');
         }
@@ -137,73 +153,5 @@ final class HttpEngine implements Engine
         }
 
         return $rows;
-    }
-
-    /**
-     * @param  list<string>  $headers
-     */
-    private function curl(string $method, string $url, array $headers, ?string $payload): string
-    {
-        $ch = curl_init($url);
-        if ($ch === false) {
-            throw new RuntimeException('Unable to init curl.');
-        }
-        curl_setopt_array($ch, [
-            CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 30,
-        ]);
-        if ($payload !== null) {
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-        }
-        $raw = curl_exec($ch);
-        $errno = curl_errno($ch);
-        $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($errno !== 0 || $raw === false) {
-            throw new RuntimeException('SRO HTTP curl failed.');
-        }
-        if ($status >= 400) {
-            $data = json_decode($raw, true);
-            $msg = is_array($data) && isset($data['error']['message'])
-                ? (string) $data['error']['message']
-                : "SRO HTTP {$status}";
-            throw new RuntimeException($msg);
-        }
-
-        return $raw;
-    }
-
-    /**
-     * @param  list<string>  $headers
-     */
-    private function stream(string $method, string $url, array $headers, ?string $payload): string
-    {
-        $opts = [
-            'http' => [
-                'method' => $method,
-                'header' => implode("\r\n", $headers),
-                'ignore_errors' => true,
-                'timeout' => 30,
-            ],
-        ];
-        if ($payload !== null) {
-            $opts['http']['content'] = $payload;
-        }
-        $raw = file_get_contents($url, false, stream_context_create($opts));
-        if ($raw === false) {
-            throw new RuntimeException('SRO HTTP request failed.');
-        }
-        $statusLine = $http_response_header[0] ?? '';
-        if (preg_match('/\s(\d{3})\s/', $statusLine, $m) && (int) $m[1] >= 400) {
-            $data = json_decode($raw, true);
-            $msg = is_array($data) && isset($data['error']['message'])
-                ? (string) $data['error']['message']
-                : 'SRO HTTP error';
-            throw new RuntimeException($msg);
-        }
-
-        return $raw;
     }
 }

@@ -30,4 +30,8 @@ class ClientRowTest < Minitest::Test
     )
     refute row.members.include?(:major_minor)
   end
+
+  def test_admin_client_is_loadable
+    assert defined?(Databoost::Sro::AdminClient)
+  end
 end

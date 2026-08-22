@@ -15,39 +15,55 @@ export class Client {
         this.tenantId = options.tenantId;
         this.fetchImpl = options.fetch ?? fetch;
     }
-    async syncNatural(listId, items) {
+    async health() {
+        const data = await this.json("GET", "/health", null, { auth: false });
+        return { status: String(data.status ?? "") };
+    }
+    async syncNatural(listId, items, expectedVersion) {
         const payload = {
             items: items.map((item) => this.normalizeSyncItem(item)),
         };
+        if (expectedVersion != null)
+            payload.expected_version = expectedVersion;
         return this.request("POST", this.listPath(listId, "syncNatural"), payload);
     }
     async list(listId) {
         return this.request("GET", this.listPath(listId), null);
     }
-    async jump(listId, itemId, toSequence) {
-        return this.request("POST", this.listPath(listId, "jump"), {
+    async jump(listId, itemId, toSequence, expectedVersion) {
+        const payload = {
             item_id: itemId,
             to_sequence: toSequence,
-        });
+        };
+        if (expectedVersion != null)
+            payload.expected_version = expectedVersion;
+        return this.request("POST", this.listPath(listId, "jump"), payload);
     }
-    async reorder(listId, itemId, afterItemId) {
-        return this.request("POST", this.listPath(listId, "reorder"), {
-            item_id: itemId,
-            after_item_id: afterItemId,
-        });
+    async reorder(listId, itemId, afterItemId, beforeItemId, expectedVersion) {
+        const payload = { item_id: itemId };
+        if (beforeItemId != null)
+            payload.before_item_id = beforeItemId;
+        else
+            payload.after_item_id = afterItemId;
+        if (expectedVersion != null)
+            payload.expected_version = expectedVersion;
+        return this.request("POST", this.listPath(listId, "reorder"), payload);
     }
-    async remove(listId, itemId) {
-        return this.request("POST", this.listPath(listId, "remove"), {
-            item_id: itemId,
-        });
+    async remove(listId, itemId, expectedVersion) {
+        const payload = { item_id: itemId };
+        if (expectedVersion != null)
+            payload.expected_version = expectedVersion;
+        return this.request("POST", this.listPath(listId, "remove"), payload);
     }
-    async resetSticky(listId, itemId) {
-        return this.request("POST", this.listPath(listId, "resetSticky"), {
-            item_id: itemId,
-        });
+    async resetSticky(listId, itemId, expectedVersion) {
+        const payload = { item_id: itemId };
+        if (expectedVersion != null)
+            payload.expected_version = expectedVersion;
+        return this.request("POST", this.listPath(listId, "resetSticky"), payload);
     }
-    async resetStickies(listId) {
-        return this.request("POST", this.listPath(listId, "resetStickies"), null);
+    async resetStickies(listId, expectedVersion) {
+        const payload = expectedVersion == null ? null : { expected_version: expectedVersion };
+        return this.request("POST", this.listPath(listId, "resetStickies"), payload);
     }
     normalizeSyncItem(item) {
         if (item.id === undefined || item.id === null || item.id === "") {
@@ -66,11 +82,34 @@ export class Client {
         return action ? `${path}/${action}` : path;
     }
     async request(method, path, body) {
+        const data = await this.json(method, path, body, { auth: true });
+        const items = data.items;
+        if (!Array.isArray(items)) {
+            throw new SroError("SRO HTTP response missing items");
+        }
+        const rows = [];
+        for (const row of items) {
+            if (typeof row !== "object" || row === null)
+                continue;
+            const r = row;
+            if (r.id === undefined || r.sequence === undefined)
+                continue;
+            rows.push({
+                id: String(r.id),
+                sequence: Number(r.sequence),
+                sticky: r.sticky === true,
+            });
+        }
+        return rows;
+    }
+    async json(method, path, body, opts) {
         const headers = {
-            Authorization: `Bearer ${this.apiToken}`,
-            "X-Tenant-Id": this.tenantId,
             Accept: "application/json",
         };
+        if (opts.auth) {
+            headers.Authorization = `Bearer ${this.apiToken}`;
+            headers["X-Tenant-Id"] = this.tenantId;
+        }
         const init = { method, headers };
         if (body !== null) {
             headers["Content-Type"] = "application/json";
@@ -104,24 +143,7 @@ export class Client {
         if (data.error && typeof data.error === "object") {
             throw new SroError(errorMessage(data) ?? "SRO HTTP error");
         }
-        const items = data.items;
-        if (!Array.isArray(items)) {
-            throw new SroError("SRO HTTP response missing items");
-        }
-        const rows = [];
-        for (const row of items) {
-            if (typeof row !== "object" || row === null)
-                continue;
-            const r = row;
-            if (r.id === undefined || r.sequence === undefined)
-                continue;
-            rows.push({
-                id: String(r.id),
-                sequence: Number(r.sequence),
-                sticky: r.sticky === true,
-            });
-        }
-        return rows;
+        return data;
     }
 }
 function errorMessage(data) {

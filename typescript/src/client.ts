@@ -41,13 +41,20 @@ export class Client {
     this.fetchImpl = options.fetch ?? fetch;
   }
 
+  async health(): Promise<{ status: string }> {
+    const data = await this.json("GET", "/health", null, { auth: false });
+    return { status: String(data.status ?? "") };
+  }
+
   async syncNatural(
     listId: string,
     items: readonly SyncNaturalItem[],
+    expectedVersion?: number | null,
   ): Promise<SequenceRow[]> {
-    const payload = {
+    const payload: JsonObject = {
       items: items.map((item) => this.normalizeSyncItem(item)),
     };
+    if (expectedVersion != null) payload.expected_version = expectedVersion;
     return this.request("POST", this.listPath(listId, "syncNatural"), payload);
   }
 
@@ -59,38 +66,57 @@ export class Client {
     listId: string,
     itemId: string,
     toSequence: number,
+    expectedVersion?: number | null,
   ): Promise<SequenceRow[]> {
-    return this.request("POST", this.listPath(listId, "jump"), {
+    const payload: JsonObject = {
       item_id: itemId,
       to_sequence: toSequence,
-    });
+    };
+    if (expectedVersion != null) payload.expected_version = expectedVersion;
+    return this.request("POST", this.listPath(listId, "jump"), payload);
   }
 
   async reorder(
     listId: string,
     itemId: string,
     afterItemId: string | null,
+    beforeItemId?: string | null,
+    expectedVersion?: number | null,
   ): Promise<SequenceRow[]> {
-    return this.request("POST", this.listPath(listId, "reorder"), {
-      item_id: itemId,
-      after_item_id: afterItemId,
-    });
+    const payload: JsonObject = { item_id: itemId };
+    if (beforeItemId != null) payload.before_item_id = beforeItemId;
+    else payload.after_item_id = afterItemId;
+    if (expectedVersion != null) payload.expected_version = expectedVersion;
+    return this.request("POST", this.listPath(listId, "reorder"), payload);
   }
 
-  async remove(listId: string, itemId: string): Promise<SequenceRow[]> {
-    return this.request("POST", this.listPath(listId, "remove"), {
-      item_id: itemId,
-    });
+  async remove(
+    listId: string,
+    itemId: string,
+    expectedVersion?: number | null,
+  ): Promise<SequenceRow[]> {
+    const payload: JsonObject = { item_id: itemId };
+    if (expectedVersion != null) payload.expected_version = expectedVersion;
+    return this.request("POST", this.listPath(listId, "remove"), payload);
   }
 
-  async resetSticky(listId: string, itemId: string): Promise<SequenceRow[]> {
-    return this.request("POST", this.listPath(listId, "resetSticky"), {
-      item_id: itemId,
-    });
+  async resetSticky(
+    listId: string,
+    itemId: string,
+    expectedVersion?: number | null,
+  ): Promise<SequenceRow[]> {
+    const payload: JsonObject = { item_id: itemId };
+    if (expectedVersion != null) payload.expected_version = expectedVersion;
+    return this.request("POST", this.listPath(listId, "resetSticky"), payload);
   }
 
-  async resetStickies(listId: string): Promise<SequenceRow[]> {
-    return this.request("POST", this.listPath(listId, "resetStickies"), null);
+  async resetStickies(
+    listId: string,
+    expectedVersion?: number | null,
+  ): Promise<SequenceRow[]> {
+    const payload =
+      expectedVersion == null ? null : { expected_version: expectedVersion };
+    return this.request("POST", this.listPath(listId, "resetStickies"), payload);
   }
 
   private normalizeSyncItem(item: SyncNaturalItem): SyncNaturalItem {
@@ -116,11 +142,39 @@ export class Client {
     path: string,
     body: JsonObject | null,
   ): Promise<SequenceRow[]> {
+    const data = await this.json(method, path, body, { auth: true });
+    const items = data.items;
+    if (!Array.isArray(items)) {
+      throw new SroError("SRO HTTP response missing items");
+    }
+
+    const rows: SequenceRow[] = [];
+    for (const row of items) {
+      if (typeof row !== "object" || row === null) continue;
+      const r = row as JsonObject;
+      if (r.id === undefined || r.sequence === undefined) continue;
+      rows.push({
+        id: String(r.id),
+        sequence: Number(r.sequence),
+        sticky: r.sticky === true,
+      });
+    }
+    return rows;
+  }
+
+  private async json(
+    method: string,
+    path: string,
+    body: JsonObject | null,
+    opts: { auth: boolean },
+  ): Promise<JsonObject> {
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.apiToken}`,
-      "X-Tenant-Id": this.tenantId,
       Accept: "application/json",
     };
+    if (opts.auth) {
+      headers.Authorization = `Bearer ${this.apiToken}`;
+      headers["X-Tenant-Id"] = this.tenantId;
+    }
     const init: RequestInit = { method, headers };
     if (body !== null) {
       headers["Content-Type"] = "application/json";
@@ -154,24 +208,7 @@ export class Client {
     if (data.error && typeof data.error === "object") {
       throw new SroError(errorMessage(data) ?? "SRO HTTP error");
     }
-
-    const items = data.items;
-    if (!Array.isArray(items)) {
-      throw new SroError("SRO HTTP response missing items");
-    }
-
-    const rows: SequenceRow[] = [];
-    for (const row of items) {
-      if (typeof row !== "object" || row === null) continue;
-      const r = row as JsonObject;
-      if (r.id === undefined || r.sequence === undefined) continue;
-      rows.push({
-        id: String(r.id),
-        sequence: Number(r.sequence),
-        sticky: r.sticky === true,
-      });
-    }
-    return rows;
+    return data;
   }
 }
 

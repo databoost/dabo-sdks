@@ -26,15 +26,19 @@ export declare class Client {
     private readonly tenantId;
     private readonly fetchImpl;
     constructor(options: ClientOptions);
-    syncNatural(listId: string, items: readonly SyncNaturalItem[]): Promise<SequenceRow[]>;
+    health(): Promise<{
+        status: string;
+    }>;
+    syncNatural(listId: string, items: readonly SyncNaturalItem[], expectedVersion?: number | null): Promise<SequenceRow[]>;
     list(listId: string): Promise<SequenceRow[]>;
-    jump(listId: string, itemId: string, toSequence: number): Promise<SequenceRow[]>;
-    reorder(listId: string, itemId: string, afterItemId: string | null): Promise<SequenceRow[]>;
-    remove(listId: string, itemId: string): Promise<SequenceRow[]>;
-    resetSticky(listId: string, itemId: string): Promise<SequenceRow[]>;
-    resetStickies(listId: string): Promise<SequenceRow[]>;
+    jump(listId: string, itemId: string, toSequence: number, expectedVersion?: number | null): Promise<SequenceRow[]>;
+    reorder(listId: string, itemId: string, afterItemId: string | null, beforeItemId?: string | null, expectedVersion?: number | null): Promise<SequenceRow[]>;
+    remove(listId: string, itemId: string, expectedVersion?: number | null): Promise<SequenceRow[]>;
+    resetSticky(listId: string, itemId: string, expectedVersion?: number | null): Promise<SequenceRow[]>;
+    resetStickies(listId: string, expectedVersion?: number | null): Promise<SequenceRow[]>;
     private normalizeSyncItem;
     private listPath;
     private request;
+    private json;
 }
 //# sourceMappingURL=client.d.ts.map
