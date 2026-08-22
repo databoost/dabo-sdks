@@ -1,0 +1,433 @@
+# © 2026 Bradley Giesbrecht, © 2026 DataBoost™, LLC, © 2026 DataBoost™ Inc. All Rights Reserved.
+
+openapi: 3.0.3
+info:
+  title: DataBoost SmoothCurve API
+  description: |
+    Eased affine curve and map sidecar (SmoothCurve).
+    Organization and tenant directory live in dabo-org (dabo-console).
+    This service keeps a local auth mirror. Product math is curve/map only.
+  version: 0.1.0
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local sidecar
+paths:
+  /:
+    get:
+      summary: Service index
+      operationId: root
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, status, health]
+                properties:
+                  service:
+                    type: string
+                    example: SmoothCurve
+                  status:
+                    type: string
+                    example: ok
+                  health:
+                    type: string
+                    example: /health
+
+  /health:
+    get:
+      summary: Liveness
+      operationId: health
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /admin/v1/tenants/{tenant_id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    put:
+      summary: Provision or upsert a tenant auth mirror
+      description: |
+        Console (dabo-org) is the only v1 caller. Creates the local tenant row
+        and, on create, issues a token (hash stored; plaintext returned once).
+        tenant_id is immutable. org_id is opaque (logs; no FK).
+      operationId: adminProvisionTenant
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminProvisionRequest'
+      responses:
+        '201':
+          description: Created (token included)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '200':
+          description: Updated (no new token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+    patch:
+      summary: Update tenant env, name, or status
+      operationId: adminUpdateTenant
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+    delete:
+      summary: Delete tenant and tokens
+      description: Deletes tokens and the tenant row. Idempotent if already gone. No product rows.
+      operationId: adminDeleteTenant
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Deleted (or already gone)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDeleteResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+
+  /admin/v1/tenants/{tenant_id}/token:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      summary: Regenerate tenant token
+      description: Revoke all active tokens, issue a new one, return plaintext once.
+      operationId: adminRegenerateToken
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token_label:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: New token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+    delete:
+      summary: Revoke all active tokens for the tenant
+      operationId: adminRevokeToken
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant_id, revoked]
+                properties:
+                  tenant_id:
+                    type: string
+                  revoked:
+                    type: integer
+                    description: Number of tokens revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+
+  /v1/tenants/{tenant_id}/curve:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/XTenantId'
+    post:
+      summary: Eased t on [0, 1]
+      description: |
+        Normalize c on [a, b] and apply ease (linear / in / out).
+        Affine range mapping is map, not curve. SQL NULL cases are HTTP 400.
+      operationId: curve
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurveRequest'
+      responses:
+        '200':
+          description: Eased t
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurveResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/tenants/{tenant_id}/map:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/XTenantId'
+    post:
+      summary: Affine map of eased t onto [g, h]
+      description: |
+        value = g + (h - g) * curve(a, b, c, ease). No second ease.
+      operationId: map
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MapRequest'
+      responses:
+        '200':
+          description: Mapped value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MapResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    AdminBearer:
+      type: http
+      scheme: bearer
+      description: |
+        Env SMOOTHCURVE_ADMIN_TOKEN. Service-to-service only (console). Not a
+        tenant Bearer. Do not send X-Tenant-Id. Unconfigured (empty) → 503.
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Env global SMOOTHCURVE_API_TOKEN (any tenant) or a hashed per-tenant
+        token issued by the admin API (`sc_<8hex>_<48hex>`). Send X-Tenant-Id
+        matching the path tenant_id.
+
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema:
+        type: string
+    XTenantId:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Must match path tenant_id.
+
+  schemas:
+    EaseFields:
+      type: object
+      properties:
+        ease_mode:
+          type: string
+          description: linear | in | ease-in | out | ease-out
+          default: linear
+        ease_exponent:
+          type: number
+          default: 2
+        clamp:
+          type: boolean
+          default: true
+    CurveRequest:
+      allOf:
+        - type: object
+          required: [a, b, c]
+          properties:
+            a: { type: number }
+            b: { type: number }
+            c: { type: number }
+        - $ref: '#/components/schemas/EaseFields'
+    MapRequest:
+      allOf:
+        - type: object
+          required: [a, b, c, g, h]
+          properties:
+            a: { type: number }
+            b: { type: number }
+            c: { type: number }
+            g: { type: number }
+            h: { type: number }
+        - $ref: '#/components/schemas/EaseFields'
+    CurveResponse:
+      type: object
+      required: [t]
+      properties:
+        t: { type: number }
+    MapResponse:
+      type: object
+      required: [value]
+      properties:
+        value: { type: number }
+    AdminProvisionRequest:
+      type: object
+      required: [org_id, env, name]
+      properties:
+        org_id:
+          type: string
+          description: Opaque org id (logs). No FK to console px_orgs.
+        env:
+          type: string
+          enum: [production, staging, development]
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+          default: active
+        token_label:
+          type: string
+          nullable: true
+          description: Used only when a token is issued (create).
+    AdminUpdateRequest:
+      type: object
+      properties:
+        org_id: { type: string }
+        env:
+          type: string
+          enum: [production, staging, development]
+        name: { type: string }
+        status:
+          type: string
+          enum: [active, disabled]
+    AdminIssuedToken:
+      type: object
+      description: Present only when a new token is issued. Plaintext once; service stores hash only. Never log.
+      required: [plaintext, token_id, prefix]
+      properties:
+        plaintext:
+          type: string
+          description: Bearer secret returned once (`sc_<8hex>_<48hex>`).
+        token_id: { type: integer }
+        prefix: { type: string }
+    AdminTenantResponse:
+      type: object
+      required: [tenant_id, org_id, env, name, status, created]
+      properties:
+        tenant_id: { type: string }
+        org_id: { type: string }
+        env: { type: string }
+        name: { type: string }
+        status: { type: string }
+        created: { type: boolean }
+        token:
+          $ref: '#/components/schemas/AdminIssuedToken'
+    AdminDeleteResponse:
+      type: object
+      required: [tenant_id, deleted, existed]
+      properties:
+        tenant_id: { type: string }
+        deleted: { type: boolean }
+        existed:
+          type: boolean
+          description: false when the tenant row was already gone (idempotent).
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+
+  responses:
+    BadRequest:
+      description: Invalid request (including undefined span or unknown ease_mode)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Unauthorized:
+      description: Missing or invalid Bearer / X-Tenant-Id
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    NotFound:
+      description: Tenant not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Conflict:
+      description: Tenant is not active (e.g. regenerate while disabled)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    AdminNotConfigured:
+      description: SMOOTHCURVE_ADMIN_TOKEN is not set
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
