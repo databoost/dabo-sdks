@@ -16,3 +16,7 @@ __pycache__/
 venv/
 node_modules/
 *.tsbuildinfo
+
+# dabo-cream (gitignored links)
+.cream
+/.cursor/
