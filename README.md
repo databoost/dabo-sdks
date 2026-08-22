@@ -1,18 +1,21 @@
 # DataBoost SDKs (`dabo-sdks`)
 
-Thin language SDKs for DataBoost HTTP APIs. Today: **Sticky Relative Order (SRO)**.
+Thin language SDKs for DataBoost HTTP APIs. Today: **Sticky Relative Order (SRO)** and **SmoothCurve**.
 
-These packages **only call the API**. They do **not** embed ranking logic (natural spine, sticky overrides, reheal) — that lives in the SRO service.
+These packages **only call the API**. They do **not** embed product logic (ranking, easing math) — that lives on each service.
 
 | Path | Package | Language |
 |------|---------|----------|
 | [`php/sro/`](php/sro/) | `databoost/sro` | PHP 8.2+ |
+| [`php/smooth-curve/`](php/smooth-curve/) | `databoost/smooth-curve` | PHP 8.2+ |
 | [`ruby/`](ruby/) | `databoost-sro` | Ruby 3.1+ |
 | [`python/`](python/) | `databoost-sro` | Python 3.10+ |
 | [`typescript/`](typescript/) | `databoost-sro` | TypeScript (Node 18+) |
-| [`openapi/sro-v1.yaml`](openapi/sro-v1.yaml) | API contract | — |
+| [`openapi/sro-v1.yaml`](openapi/sro-v1.yaml) | SRO API contract | — |
+| [`openapi/smoothcurve-v1.yaml`](openapi/smoothcurve-v1.yaml) | SmoothCurve API contract | — |
 
-Live SRO API: <https://sro.databoost.com>
+Live SRO API: <https://sro.databoost.com>  
+Live SmoothCurve API: <https://smocur.databoost.com>
 
 ## PHP (`databoost/sro`)
 
@@ -61,6 +64,36 @@ $client->resetStickies('bindery');        // clear all overlays on this list
 ```
 
 Namespace `Databoost\Sro`. `Client::http(...)` returns `Client`. Tests may inject a fake via `new Client($engine)` (`Engine` interface).
+
+## PHP (`databoost/smooth-curve`)
+
+Package lives under [`php/smooth-curve/`](php/smooth-curve/). Same Shape B path install (`../dabo-sdks/php/*`).
+
+```php
+use Databoost\SmoothCurve\Client;
+
+$client = Client::http(
+    getenv('SMOCUR_BASE_URL') ?: throw new RuntimeException('SMOCUR_BASE_URL is required'),
+    getenv('SMOCUR_API_TOKEN') ?: '',
+    getenv('SMOCUR_TENANT_ID') ?: 'lpp-dev',
+);
+// production example: Client::http('https://smocur.databoost.com', $token, 'lpp');
+
+$curve = $client->curve(['a' => 0, 'b' => 100, 'c' => 50]);
+$mapped = $client->map([
+    'a' => 0,
+    'b' => 100,
+    'c' => 50,
+    'g' => 0,
+    'h' => 1,
+    'ease_mode' => 'linear',
+    'ease_exponent' => 2,
+    'clamp' => true,
+]);
+// $curve['t'], $mapped['value']
+```
+
+Auth: `Authorization: Bearer <token>` + `X-Tenant-Id`. Easing math stays on the service.
 
 ## Ruby
 
