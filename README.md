@@ -1,17 +1,19 @@
 # DataBoost SDKs (`dabo-sdks`)
 
-Thin language SDKs for DataBoost HTTP APIs. Today: **Sticky Relative Order (SRO)** and **SmoothCurve**.
+Thin language SDKs for DataBoost HTTP APIs. Today: **Sticky Relative Order (SRO)**, **Time**, and **SmoothCurve**.
 
-These packages **only call the API**. They do **not** embed product logic (ranking, easing math) — that lives on each service.
+These packages **only call the API**. They do **not** embed product logic (ranking, timers, easing math) — that lives on each service.
 
 | Path | Package | Language |
 |------|---------|----------|
 | [`php/sro/`](php/sro/) | `databoost/sro` | PHP 8.2+ |
+| [`php/time/`](php/time/) | `databoost/time` | PHP 8.2+ |
 | [`php/smooth-curve/`](php/smooth-curve/) | `databoost/smooth-curve` | PHP 8.2+ |
 | [`ruby/`](ruby/) | `databoost-sro` | Ruby 3.1+ |
 | [`python/`](python/) | `databoost-sro` | Python 3.10+ |
 | [`typescript/`](typescript/) | `databoost-sro` | TypeScript (Node 18+) |
 | [`openapi/sro-v1.yaml`](openapi/sro-v1.yaml) | SRO API contract | — |
+| [`openapi/time-v1.yaml`](openapi/time-v1.yaml) | Time API contract | — |
 | [`openapi/smoothcurve-v1.yaml`](openapi/smoothcurve-v1.yaml) | SmoothCurve API contract | — |
 
 Live SRO API: <https://sro.databoost.com>  
@@ -64,6 +66,32 @@ $client->resetStickies('bindery');        // clear all overlays on this list
 ```
 
 Namespace `Databoost\Sro`. `Client::http(...)` returns `Client`. Tests may inject a fake via `new Client($engine)` (`Engine` interface).
+
+## PHP (`databoost/time`)
+
+Package lives under [`php/time/`](php/time/). Same Shape B path install (`../dabo-sdks/php/*`).
+
+```php
+use Databoost\Time\Client;
+
+$client = Client::http(
+    getenv('TIME_BASE_URL') ?: throw new RuntimeException('TIME_BASE_URL is required'),
+    getenv('TIME_API_TOKEN') ?: '',
+    getenv('TIME_TENANT_ID') ?: 'lpp-dev',
+);
+
+$project = $client->createProject(['name' => 'Bindery']);
+$task = $client->createTask(['name' => 'Make ready']);
+$running = $client->createTimeEntry([
+    'project_id' => $project['id'],
+    'task_id' => $task['id'],
+    'spent_date' => date('Y-m-d'),
+    'redmine_issue_id' => '12345',
+]);
+$stopped = $client->stopTimer((int) $running['id']);
+```
+
+Auth: `Authorization: Bearer <token>` + `X-Tenant-Id`. Timer/timesheet logic stays on the service.
 
 ## PHP (`databoost/smooth-curve`)
 
