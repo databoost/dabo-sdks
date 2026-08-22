@@ -1,0 +1,577 @@
+# © 2026 Bradley Giesbrecht, © 2026 DataBoost™, LLC, © 2026 DataBoost™ Inc. All Rights Reserved.
+
+openapi: 3.0.3
+info:
+  title: DataBoost Time API
+  description: |
+    Harvest-shaped timer and timesheet service (dabo-time).
+    Organization and tenant directory live in dabo-org (dabo-console).
+    This service keeps a local auth mirror and product data.
+  version: 0.1.0
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local sidecar
+paths:
+  /health:
+    get:
+      summary: Liveness
+      operationId: health
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /admin/v1/tenants/{tenant_id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    put:
+      summary: Provision or upsert a tenant auth mirror
+      description: |
+        Console (dabo-org) is the only v1 caller. Creates the local tenant row
+        and, on create, issues a token (hash stored; plaintext returned once).
+        tenant_id is immutable. org_id is opaque (logs; no FK).
+      operationId: adminProvisionTenant
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminProvisionRequest'
+      responses:
+        '201':
+          description: Created (token included)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '200':
+          description: Updated (no new token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+    patch:
+      summary: Update tenant env, name, or status
+      operationId: adminUpdateTenant
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+    delete:
+      summary: Delete tenant, tokens, and time product rows
+      description: |
+        Purges entries/timers for the tenant (when those tables exist), deletes
+        tokens and the tenant row. Idempotent if already gone.
+      operationId: adminDeleteTenant
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Deleted (or already gone)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDeleteResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+
+  /admin/v1/tenants/{tenant_id}/token:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    post:
+      summary: Regenerate tenant token
+      description: Revoke all active tokens, issue a new one, return plaintext once.
+      operationId: adminRegenerateToken
+      security:
+        - AdminBearer: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token_label:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: New token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminTenantResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+    delete:
+      summary: Revoke all active tokens for the tenant
+      operationId: adminRevokeToken
+      security:
+        - AdminBearer: []
+      responses:
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant_id, revoked]
+                properties:
+                  tenant_id:
+                    type: string
+                  revoked:
+                    type: integer
+                    description: Number of tokens revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/AdminNotConfigured'
+
+  /v1/tenants/{tenant_id}/projects:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      summary: List projects
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      responses:
+        '200':
+          description: Project list
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Create project
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                code: { type: string, nullable: true }
+                is_active: { type: boolean }
+      responses:
+        '201':
+          description: Created
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/tenants/{tenant_id}/projects/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      summary: Show project
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      responses:
+        '200':
+          description: Project
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update project
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      responses:
+        '200':
+          description: Updated
+
+  /v1/tenants/{tenant_id}/tasks:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      summary: List tasks
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      responses:
+        '200':
+          description: Task list
+    post:
+      summary: Create task
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                is_active: { type: boolean }
+      responses:
+        '201':
+          description: Created
+
+  /v1/tenants/{tenant_id}/tasks/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      summary: Show task
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      responses:
+        '200':
+          description: Task
+    patch:
+      summary: Update task
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      responses:
+        '200':
+          description: Updated
+
+  /v1/tenants/{tenant_id}/time_entries:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+    get:
+      summary: List time entries
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+        - name: project_id
+          in: query
+          schema: { type: integer }
+        - name: is_running
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Entry list
+    post:
+      summary: Create duration entry or start a timer
+      description: |
+        Omit `hours` to start a running timer (Harvest-style). Include `hours`
+        for a duration entry. Optional `redmine_issue_id` and `external_user_id`.
+        Starting a timer stops any other running timer for the same external user.
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimeEntryCreate'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeEntry'
+
+  /v1/tenants/{tenant_id}/time_entries/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ResourceId'
+    get:
+      summary: Show time entry
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      responses:
+        '200':
+          description: Entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimeEntry'
+    patch:
+      summary: Update time entry
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      responses:
+        '200':
+          description: Updated
+    delete:
+      summary: Delete time entry
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      responses:
+        '200':
+          description: Deleted
+
+  /v1/tenants/{tenant_id}/time_entries/{id}/stop:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      summary: Stop a running timer (accumulate hours)
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      responses:
+        '200':
+          description: Stopped
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /v1/tenants/{tenant_id}/time_entries/{id}/restart:
+    parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      summary: Restart a timer on an existing entry
+      security:
+        - BearerAuth: []
+          TenantHeader: []
+      responses:
+        '200':
+          description: Running
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+components:
+  securitySchemes:
+    AdminBearer:
+      type: http
+      scheme: bearer
+      description: TIME_ADMIN_TOKEN (service-to-service). Not a tenant Bearer.
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Tenant token (hash mirror) or TIME_API_TOKEN.
+    TenantHeader:
+      type: apiKey
+      in: header
+      name: X-Tenant-Id
+      description: Must match path tenant_id
+
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  schemas:
+    AdminProvisionRequest:
+      type: object
+      required: [org_id, env, name]
+      properties:
+        org_id:
+          type: string
+          description: Opaque org id (logs). No FK to console px_orgs.
+        env:
+          type: string
+          enum: [production, staging, development]
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+          default: active
+        token_label:
+          type: string
+          nullable: true
+          description: Used only when a token is issued (create).
+
+    AdminUpdateRequest:
+      type: object
+      properties:
+        org_id:
+          type: string
+        env:
+          type: string
+          enum: [production, staging, development]
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+
+    AdminIssuedToken:
+      type: object
+      description: Present only when a new token is issued. Plaintext once; service stores hash only. Never log.
+      required: [plaintext, token_id, prefix]
+      properties:
+        plaintext:
+          type: string
+          description: Bearer secret returned once (`time_<8hex>_<48hex>`).
+        token_id:
+          type: integer
+        prefix:
+          type: string
+
+    AdminTenantResponse:
+      type: object
+      required: [tenant_id, org_id, env, name, status, created]
+      properties:
+        tenant_id:
+          type: string
+        org_id:
+          type: string
+        env:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        created:
+          type: boolean
+        token:
+          $ref: '#/components/schemas/AdminIssuedToken'
+
+    AdminDeleteResponse:
+      type: object
+      required: [tenant_id, deleted, existed]
+      properties:
+        tenant_id:
+          type: string
+        deleted:
+          type: boolean
+        existed:
+          type: boolean
+          description: false when the tenant row was already gone (idempotent).
+
+    TimeEntryCreate:
+      type: object
+      required: [project_id, task_id, spent_date]
+      properties:
+        project_id: { type: integer }
+        task_id: { type: integer }
+        spent_date: { type: string, format: date }
+        hours: { type: number, nullable: true }
+        notes: { type: string, nullable: true }
+        redmine_issue_id: { type: string, nullable: true }
+        external_user_id: { type: string, nullable: true }
+
+    TimeEntry:
+      type: object
+      required: [id, project_id, task_id, spent_date, hours, is_running]
+      properties:
+        id: { type: integer }
+        project_id: { type: integer }
+        task_id: { type: integer }
+        spent_date: { type: string, format: date }
+        hours: { type: number }
+        notes: { type: string, nullable: true }
+        redmine_issue_id: { type: string, nullable: true }
+        external_user_id: { type: string, nullable: true }
+        timer_started_at: { type: string, nullable: true }
+        is_running: { type: boolean }
+        created_at: { type: string }
+        updated_at: { type: string }
+
+    ErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    NotFound:
+      description: Tenant not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Conflict:
+      description: Tenant is not active (e.g. regenerate while disabled)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    AdminNotConfigured:
+      description: TIME_ADMIN_TOKEN is not set
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
